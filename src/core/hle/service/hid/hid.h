@@ -373,6 +373,7 @@ private:
     // screen, which drives Resident Evil: The Mercenaries 3D's look-around camera.
     // Returns true and fills the coordinates while the virtual finger is down.
     // Does nothing for any other title.
+    void LoadMercs3DConfig();
     bool IsMercs3DRunning() const;
     bool UpdateMercs3DRightStickTouch(u16& touch_x, u16& touch_y);
 
@@ -417,6 +418,17 @@ private:
         buttons;
     std::unique_ptr<Input::AnalogDevice> circle_pad;
     std::unique_ptr<Input::AnalogDevice> mercs3d_c_stick;
+    struct Mercs3DConfig {
+        bool enabled = true;
+        float deadzone = 0.15f;
+        float anchor_x = 160.0f;
+        float anchor_y = 120.0f;
+        float max_travel = 110.0f;
+        float speed = 400.0f;
+        bool invert_x = false;
+        bool invert_y = false;
+    };
+    Mercs3DConfig mercs3d_config;
     bool mercs3d_finger_down = false;
     float mercs3d_finger_x = 0.0f;
     float mercs3d_finger_y = 0.0f;

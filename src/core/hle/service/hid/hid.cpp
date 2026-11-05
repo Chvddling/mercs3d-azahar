@@ -6,10 +6,12 @@
 #include <cmath>
 #include <cstring>
 #include <numeric>
+#include <string>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/shared_ptr.hpp>
 #include <boost/serialization/unique_ptr.hpp>
 #include "common/archives.h"
+#include "common/file_util.h"
 #include "common/logging/log.h"
 #include "core/3ds.h"
 #include "core/core.h"
@@ -129,6 +131,7 @@ void Module::LoadInputDevices() {
         Settings::values.current_input_profile.analogs[Settings::NativeAnalog::CirclePad]);
     mercs3d_c_stick = Input::CreateDevice<Input::AnalogDevice>(
         Settings::values.current_input_profile.analogs[Settings::NativeAnalog::CStick]);
+    LoadMercs3DConfig();
     motion_device = Input::CreateDevice<Input::MotionDevice>(
         Settings::values.current_input_profile.motion_device);
     touch_device = Input::CreateDevice<Input::TouchDevice>(
@@ -147,6 +150,94 @@ void Module::LoadInputDevices() {
     }
 }
 
+void Module::LoadMercs3DConfig() {
+    const std::string path = FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir) + "mercs3d.ini";
+    mercs3d_config = Mercs3DConfig{};
+
+    std::string text;
+    if (!FileUtil::Exists(path) || FileUtil::ReadFileToString(true, path, text) == 0) {
+        const std::string defaults =
+            "# Mercs3D settings for Resident Evil: The Mercenaries 3D.\n"
+            "# Edit and restart the game to apply. Delete this file to restore defaults.\n"
+            "\n"
+            "# Right stick (mapped to C-Stick) drags a virtual finger on the bottom screen,\n"
+            "# which drives the look-around camera like dragging on the minimap.\n"
+            "right_stick_camera = 1\n"
+            "# Stick deadzone, 0.0 to 0.9\n"
+            "deadzone = 0.15\n"
+            "# Where the virtual finger presses, in bottom screen pixels (320 x 240)\n"
+            "anchor_x = 160\n"
+            "anchor_y = 120\n"
+            "# How far the finger may move from the anchor, in pixels\n"
+            "max_travel = 110\n"
+            "# Finger speed at full stick deflection, in pixels per second\n"
+            "# (higher = faster camera)\n"
+            "speed = 400\n"
+            "# 1 to invert an axis\n"
+            "invert_x = 0\n"
+            "invert_y = 0\n";
+        FileUtil::CreateFullPath(path);
+        FileUtil::WriteStringToFile(true, path, defaults);
+        LOG_INFO(Service_HID, "Mercs3D: wrote default settings to {}", path);
+        return;
+    }
+
+    std::size_t pos = 0;
+    while (pos < text.size()) {
+        std::size_t end = text.find('\n', pos);
+        if (end == std::string::npos) {
+            end = text.size();
+        }
+        std::string line = text.substr(pos, end - pos);
+        pos = end + 1;
+        const std::size_t comment = line.find_first_of("#;");
+        if (comment != std::string::npos) {
+            line.erase(comment);
+        }
+        const std::size_t eq = line.find('=');
+        if (eq == std::string::npos) {
+            continue;
+        }
+        auto trim = [](std::string str) {
+            const auto first = str.find_first_not_of(" \t\r");
+            const auto last = str.find_last_not_of(" \t\r");
+            return first == std::string::npos ? std::string{} : str.substr(first, last - first + 1);
+        };
+        const std::string key = trim(line.substr(0, eq));
+        const std::string value = trim(line.substr(eq + 1));
+        if (value.empty()) {
+            continue;
+        }
+        float number = 0.0f;
+        try {
+            number = std::stof(value);
+        } catch (...) {
+            LOG_WARNING(Service_HID, "Mercs3D: bad value for {}: {}", key, value);
+            continue;
+        }
+        if (key == "right_stick_camera") {
+            mercs3d_config.enabled = number != 0.0f;
+        } else if (key == "deadzone") {
+            mercs3d_config.deadzone = std::clamp(number, 0.0f, 0.9f);
+        } else if (key == "anchor_x") {
+            mercs3d_config.anchor_x =
+                std::clamp(number, 0.0f, static_cast<float>(Core::kScreenBottomWidth - 1));
+        } else if (key == "anchor_y") {
+            mercs3d_config.anchor_y =
+                std::clamp(number, 0.0f, static_cast<float>(Core::kScreenBottomHeight - 1));
+        } else if (key == "max_travel") {
+            mercs3d_config.max_travel = std::max(number, 0.0f);
+        } else if (key == "speed") {
+            mercs3d_config.speed = std::max(number, 0.0f);
+        } else if (key == "invert_x") {
+            mercs3d_config.invert_x = number != 0.0f;
+        } else if (key == "invert_y") {
+            mercs3d_config.invert_y = number != 0.0f;
+        }
+    }
+    LOG_INFO(Service_HID, "Mercs3D: loaded settings from {}", path);
+}
+
 bool Module::IsMercs3DRunning() const {
     // Resident Evil: The Mercenaries 3D (USA) (Rev 1)
     constexpr u64 MERCS3D_TITLE_ID = 0x0004000000035900ULL;
@@ -163,17 +254,16 @@ bool Module::UpdateMercs3DRightStickTouch(u16& touch_x, u16& touch_y) {
     // Turn the right stick (mapped to the C-Stick) into a virtual finger dragging there:
     // the finger moves at a speed proportional to stick deflection, and lifts (camera snaps
     // back) when the stick returns to center.
-    constexpr float DEADZONE = 0.15f;
-    // Where the virtual finger presses down, in bottom-screen pixels (320x240).
-    constexpr float ANCHOR_X = 160.0f;
-    constexpr float ANCHOR_Y = 120.0f;
-    // How far the finger may travel from the anchor, in pixels.
-    constexpr float MAX_TRAVEL = 110.0f;
-    // Finger speed at full deflection, in pixels per second. The pad updates 234 times/s.
-    constexpr float SPEED_PX_PER_SEC = 400.0f;
+    const auto& cfg = mercs3d_config;
+    const float DEADZONE = cfg.deadzone;
+    const float ANCHOR_X = cfg.anchor_x;
+    const float ANCHOR_Y = cfg.anchor_y;
+    const float MAX_TRAVEL = cfg.max_travel;
+    const float SPEED_PX_PER_SEC = cfg.speed;
+    // The pad updates 234 times per second.
     constexpr float UPDATES_PER_SEC = 234.0f;
 
-    if (!mercs3d_c_stick || !IsMercs3DRunning()) {
+    if (!cfg.enabled || !mercs3d_c_stick || !IsMercs3DRunning()) {
         mercs3d_finger_down = false;
         return false;
     }
@@ -194,16 +284,17 @@ bool Module::UpdateMercs3DRightStickTouch(u16& touch_x, u16& touch_y) {
         mercs3d_finger_y = ANCHOR_Y;
     } else {
         const float step = SPEED_PX_PER_SEC / UPDATES_PER_SEC;
-        mercs3d_finger_x += x * step;
-        mercs3d_finger_y -= y * step; // stick up = finger moves up the screen
+        mercs3d_finger_x += (cfg.invert_x ? -x : x) * step;
+        // By default, stick up = finger moves up the screen.
+        mercs3d_finger_y -= (cfg.invert_y ? -y : y) * step;
         mercs3d_finger_x =
             std::clamp(mercs3d_finger_x, ANCHOR_X - MAX_TRAVEL, ANCHOR_X + MAX_TRAVEL);
         mercs3d_finger_y =
             std::clamp(mercs3d_finger_y, ANCHOR_Y - MAX_TRAVEL, ANCHOR_Y + MAX_TRAVEL);
-        mercs3d_finger_x = std::clamp(mercs3d_finger_x, 0.0f,
-                                      static_cast<float>(Core::kScreenBottomWidth - 1));
-        mercs3d_finger_y = std::clamp(mercs3d_finger_y, 0.0f,
-                                      static_cast<float>(Core::kScreenBottomHeight - 1));
+        mercs3d_finger_x =
+            std::clamp(mercs3d_finger_x, 0.0f, static_cast<float>(Core::kScreenBottomWidth - 1));
+        mercs3d_finger_y =
+            std::clamp(mercs3d_finger_y, 0.0f, static_cast<float>(Core::kScreenBottomHeight - 1));
     }
     touch_x = static_cast<u16>(mercs3d_finger_x);
     touch_y = static_cast<u16>(mercs3d_finger_y);
