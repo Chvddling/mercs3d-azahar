@@ -369,6 +369,10 @@ private:
     void UpdateAccelerometerCallback(std::uintptr_t user_data, s64 cycles_late);
     void UpdateGyroscopeCallback(std::uintptr_t user_data, s64 cycles_late);
 
+    // Mercs3D: feeds the C-Stick (right stick) into Resident Evil: The Mercenaries 3D's
+    // look-around camera. Does nothing for any other title or version.
+    void UpdateMercs3DRightStick();
+
     Core::System& system;
 
     // Handle to shared memory region designated to HID_User service
@@ -409,6 +413,7 @@ private:
     std::array<std::unique_ptr<Input::ButtonDevice>, Settings::NativeButton::NUM_BUTTONS_HID>
         buttons;
     std::unique_ptr<Input::AnalogDevice> circle_pad;
+    std::unique_ptr<Input::AnalogDevice> mercs3d_c_stick;
     std::unique_ptr<Input::MotionDevice> motion_device;
     std::unique_ptr<Input::TouchDevice> controller_touch_device;
     std::unique_ptr<Input::TouchDevice> touch_device;

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <numeric>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/shared_ptr.hpp>
@@ -15,6 +16,8 @@
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/event.h"
 #include "core/hle/kernel/handle_table.h"
+#include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/process.h"
 #include "core/hle/kernel/shared_memory.h"
 #include "core/hle/kernel/shared_page.h"
 #include "core/hle/service/hid/hid.h"
@@ -23,6 +26,7 @@
 #include "core/hle/service/ir/ir_rst.h"
 #include "core/hle/service/ir/ir_user.h"
 #include "core/hle/service/service.h"
+#include "core/memory.h"
 #include "core/movie.h"
 
 SERVICE_CONSTRUCT_IMPL(Service::HID::Module)
@@ -123,6 +127,8 @@ void Module::LoadInputDevices() {
                    buttons.begin(), Input::CreateDevice<Input::ButtonDevice>);
     circle_pad = Input::CreateDevice<Input::AnalogDevice>(
         Settings::values.current_input_profile.analogs[Settings::NativeAnalog::CirclePad]);
+    mercs3d_c_stick = Input::CreateDevice<Input::AnalogDevice>(
+        Settings::values.current_input_profile.analogs[Settings::NativeAnalog::CStick]);
     motion_device = Input::CreateDevice<Input::MotionDevice>(
         Settings::values.current_input_profile.motion_device);
     touch_device = Input::CreateDevice<Input::TouchDevice>(
@@ -141,11 +147,71 @@ void Module::LoadInputDevices() {
     }
 }
 
+void Module::UpdateMercs3DRightStick() {
+    // Resident Evil: The Mercenaries 3D (USA) (Rev 1)
+    constexpr u64 MERCS3D_TITLE_ID = 0x0004000000035900ULL;
+    // Literal-pool word read by the game's control update (FUN_004D40F8). It points at the
+    // vector used as the look-around ("survey") stick input, which is a constant (0,0) in the
+    // original game.
+    constexpr VAddr SURVEY_INPUT_PTR = 0x004D4784;
+    constexpr u32 SURVEY_INPUT_PTR_ORIGINAL = 0x008BE588;
+    // Unused padding at the end of the .text segment, used as our input slot (x, y floats).
+    constexpr VAddr SURVEY_INPUT_SLOT = 0x00811E00;
+    constexpr float DEADZONE = 0.15f;
+
+    if (!mercs3d_c_stick) {
+        return;
+    }
+
+    std::shared_ptr<Kernel::Process> process;
+    for (const auto& p : system.Kernel().GetProcessList()) {
+        if (p && p->codeset && p->codeset->program_id == MERCS3D_TITLE_ID) {
+            process = p;
+            break;
+        }
+    }
+    if (!process) {
+        return;
+    }
+
+    auto& memory = system.Memory();
+    const u32 ptr = memory.Read32(*process, SURVEY_INPUT_PTR);
+    if (ptr == SURVEY_INPUT_PTR_ORIGINAL) {
+        memory.Write32(*process, SURVEY_INPUT_SLOT, 0);
+        memory.Write32(*process, SURVEY_INPUT_SLOT + 4, 0);
+        memory.Write32(*process, SURVEY_INPUT_PTR, SURVEY_INPUT_SLOT);
+        system.InvalidateCacheRange(SURVEY_INPUT_PTR, sizeof(u32));
+    } else if (ptr != SURVEY_INPUT_SLOT) {
+        // Unknown game version: leave it alone.
+        return;
+    }
+
+    auto [x, y] = mercs3d_c_stick->GetStatus();
+    const float magnitude = std::sqrt(x * x + y * y);
+    if (magnitude < DEADZONE) {
+        x = 0.0f;
+        y = 0.0f;
+    } else {
+        // Rescale so the stick starts at 0 right outside the deadzone and reaches 1 at the edge.
+        const float scaled = std::min((magnitude - DEADZONE) / (1.0f - DEADZONE), 1.0f);
+        x = x / magnitude * scaled;
+        y = y / magnitude * scaled;
+    }
+
+    u32 x_bits, y_bits;
+    std::memcpy(&x_bits, &x, sizeof(float));
+    std::memcpy(&y_bits, &y, sizeof(float));
+    memory.Write32(*process, SURVEY_INPUT_SLOT, x_bits);
+    memory.Write32(*process, SURVEY_INPUT_SLOT + 4, y_bits);
+}
+
 void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
     SharedMem* mem = reinterpret_cast<SharedMem*>(shared_mem->GetPointer());
 
     if (is_device_reload_pending.exchange(false))
         LoadInputDevices();
+
+    UpdateMercs3DRightStick();
 
     using namespace Settings::NativeButton;
 
