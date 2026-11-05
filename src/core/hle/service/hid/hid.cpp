@@ -175,7 +175,12 @@ void Module::LoadMercs3DConfig() {
             "speed = 400\n"
             "# 1 to invert an axis\n"
             "invert_x = 0\n"
-            "invert_y = 0\n";
+            "invert_y = 0\n"
+            "\n"
+            "# Show enemies as red dots on the minimap (darker red = another floor)\n"
+            "minimap_enemies = 1\n"
+            "# Dot size in bottom screen pixels\n"
+            "enemy_dot_size = 3\n";
         FileUtil::CreateFullPath(path);
         FileUtil::WriteStringToFile(true, path, defaults);
         LOG_INFO(Service_HID, "Mercs3D: wrote default settings to {}", path);

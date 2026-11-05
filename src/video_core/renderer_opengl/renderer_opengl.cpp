@@ -2,13 +2,17 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <algorithm>
+#include <cmath>
 #include "common/logging/log.h"
 #include "common/microprofile.h"
 #include "common/settings.h"
+#include "core/3ds.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
 #include "core/frontend/framebuffer_layout.h"
 #include "core/memory.h"
+#include "core/mercs3d_minimap.h"
 #include "video_core/pica/pica_core.h"
 #include "video_core/renderer_opengl/gl_state.h"
 #include "video_core/renderer_opengl/gl_texture_mailbox.h"
@@ -750,6 +754,59 @@ void RendererOpenGL::DrawScreens(const Layout::FramebufferLayout& layout, bool f
         }
     }
     ResetSecondLayerOpacity();
+    DrawMercs3DMinimap(layout, flipped);
+}
+
+void RendererOpenGL::DrawMercs3DMinimap(const Layout::FramebufferLayout& layout, bool flipped) {
+    // Enemy markers on Resident Evil: The Mercenaries 3D's minimap, drawn as solid squares
+    // over the bottom screen (only for the normal, landscape bottom screen).
+    if (!layout.bottom_screen_enabled || !layout.is_rotated ||
+        layout.render_3d_mode != Settings::StereoRenderOption::Off) {
+        return;
+    }
+    const auto dots = Mercs3D::GetMinimapDots(system);
+    if (dots.empty()) {
+        return;
+    }
+    const auto& cfg = Mercs3D::GetMinimapSettings();
+    const auto& screen = layout.bottom_screen;
+    const float sx = static_cast<float>(screen.GetWidth()) / Core::kScreenBottomWidth;
+    const float sy = static_cast<float>(screen.GetHeight()) / Core::kScreenBottomHeight;
+
+    GLfloat old_clear[4];
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, old_clear);
+    const OpenGLState prev_state = OpenGLState::GetCurState();
+    OpenGLState draw_state = prev_state;
+    draw_state.scissor.enabled = true;
+
+    auto fill = [&](float cx, float cy, float size, float r, float g, float b) {
+        const float half = size * 0.5f;
+        const GLint l = static_cast<GLint>(std::lround(screen.left + (cx - half) * sx));
+        const GLint t = static_cast<GLint>(std::lround(screen.top + (cy - half) * sy));
+        const GLint rr = static_cast<GLint>(std::lround(screen.left + (cx + half) * sx));
+        const GLint bb = static_cast<GLint>(std::lround(screen.top + (cy + half) * sy));
+        const GLsizei w = std::max(rr - l, 1);
+        const GLsizei h = std::max(bb - t, 1);
+        draw_state.scissor.x = l;
+        draw_state.scissor.y = flipped ? t : static_cast<GLint>(layout.height) - t - h;
+        draw_state.scissor.width = w;
+        draw_state.scissor.height = h;
+        draw_state.Apply();
+        glClearColor(r, g, b, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+    };
+    for (const auto& dot : dots) {
+        fill(dot.x, dot.y, cfg.dot_size + 2.0f, 0.20f, 0.0f, 0.0f);
+    }
+    for (const auto& dot : dots) {
+        if (dot.other_floor) {
+            fill(dot.x, dot.y, cfg.dot_size, 0.50f, 0.08f, 0.08f);
+        } else {
+            fill(dot.x, dot.y, cfg.dot_size, 1.0f, 0.15f, 0.15f);
+        }
+    }
+    prev_state.Apply();
+    glClearColor(old_clear[0], old_clear[1], old_clear[2], old_clear[3]);
 }
 
 void RendererOpenGL::ApplySecondLayerOpacity(float opacity) {

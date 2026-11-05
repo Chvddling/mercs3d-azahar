@@ -114,6 +114,7 @@ private:
     void ApplySecondLayerOpacity(float alpha);
 
     void DrawCursor(const Layout::FramebufferLayout& layout);
+    void DrawMercs3DMinimap(const Layout::FramebufferLayout& layout);
 
     void LoadFBToScreenInfo(const Pica::FramebufferConfig& framebuffer, ScreenInfo& screen_info,
                             bool right_eye);

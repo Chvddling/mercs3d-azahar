@@ -2,13 +2,18 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <algorithm>
+#include <cmath>
+#include <vector>
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/memory_detect.h"
 #include "common/microprofile.h"
 #include "common/settings.h"
+#include "core/3ds.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
+#include "core/mercs3d_minimap.h"
 #include "video_core/gpu.h"
 #include "video_core/pica/pica_core.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
@@ -1058,9 +1063,72 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
         }
     }
 
+    DrawMercs3DMinimap(layout);
     DrawCursor(layout);
 
     scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
+}
+
+void RendererVulkan::DrawMercs3DMinimap(const Layout::FramebufferLayout& layout) {
+    // Enemy markers on Resident Evil: The Mercenaries 3D's minimap, drawn as solid squares
+    // over the bottom screen (only for the normal, landscape bottom screen).
+    if (!layout.bottom_screen_enabled || !layout.is_rotated ||
+        layout.render_3d_mode != Settings::StereoRenderOption::Off) {
+        return;
+    }
+    const auto dots = Mercs3D::GetMinimapDots(system);
+    if (dots.empty()) {
+        return;
+    }
+    const auto& cfg = Mercs3D::GetMinimapSettings();
+    const auto& screen = layout.bottom_screen;
+    const float sx = static_cast<float>(screen.GetWidth()) / Core::kScreenBottomWidth;
+    const float sy = static_cast<float>(screen.GetHeight()) / Core::kScreenBottomHeight;
+
+    auto make_rect = [&](float cx, float cy, float size) {
+        const float half = size * 0.5f;
+        const s32 l = std::max(static_cast<s32>(std::lround(screen.left + (cx - half) * sx)), 0);
+        const s32 t = std::max(static_cast<s32>(std::lround(screen.top + (cy - half) * sy)), 0);
+        const s32 r = std::min(static_cast<s32>(std::lround(screen.left + (cx + half) * sx)),
+                               static_cast<s32>(layout.width));
+        const s32 b = std::min(static_cast<s32>(std::lround(screen.top + (cy + half) * sy)),
+                               static_cast<s32>(layout.height));
+        return vk::ClearRect{
+            .rect = {{l, t},
+                     {static_cast<u32>(std::max(r - l, 1)), static_cast<u32>(std::max(b - t, 1))}},
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        };
+    };
+
+    std::vector<vk::ClearRect> outline, near_dots, far_dots;
+    for (const auto& dot : dots) {
+        outline.push_back(make_rect(dot.x, dot.y, cfg.dot_size + 2.0f));
+        (dot.other_floor ? far_dots : near_dots).push_back(make_rect(dot.x, dot.y, cfg.dot_size));
+    }
+
+    scheduler.Record([outline = std::move(outline), near_dots = std::move(near_dots),
+                      far_dots = std::move(far_dots)](vk::CommandBuffer cmdbuf) {
+        auto clear = [&](const std::vector<vk::ClearRect>& rects, float r, float g, float b) {
+            if (rects.empty()) {
+                return;
+            }
+            vk::ClearColorValue color{};
+            color.float32[0] = r;
+            color.float32[1] = g;
+            color.float32[2] = b;
+            color.float32[3] = 1.0f;
+            const vk::ClearAttachment attachment = {
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .colorAttachment = 0,
+                .clearValue = {.color = color},
+            };
+            cmdbuf.clearAttachments(attachment, rects);
+        };
+        clear(outline, 0.20f, 0.0f, 0.0f);
+        clear(far_dots, 0.50f, 0.08f, 0.08f);
+        clear(near_dots, 1.0f, 0.15f, 0.15f);
+    });
 }
 
 void RendererVulkan::DrawCursor(const Layout::FramebufferLayout& layout) {

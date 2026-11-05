@@ -479,6 +479,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     loader/smdh.cpp
     loader/smdh.h
     memory.cpp
+    mercs3d_minimap.cpp
+    mercs3d_minimap.h
     memory.h
     movie.cpp
     movie.h
