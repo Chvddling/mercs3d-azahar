@@ -369,9 +369,12 @@ private:
     void UpdateAccelerometerCallback(std::uintptr_t user_data, s64 cycles_late);
     void UpdateGyroscopeCallback(std::uintptr_t user_data, s64 cycles_late);
 
-    // Mercs3D: feeds the C-Stick (right stick) into Resident Evil: The Mercenaries 3D's
-    // look-around camera. Does nothing for any other title or version.
-    void UpdateMercs3DRightStick();
+    // Mercs3D: turns the C-Stick (right stick) into a virtual finger dragging on the bottom
+    // screen, which drives Resident Evil: The Mercenaries 3D's look-around camera.
+    // Returns true and fills the coordinates while the virtual finger is down.
+    // Does nothing for any other title.
+    bool IsMercs3DRunning() const;
+    bool UpdateMercs3DRightStickTouch(u16& touch_x, u16& touch_y);
 
     Core::System& system;
 
@@ -414,6 +417,9 @@ private:
         buttons;
     std::unique_ptr<Input::AnalogDevice> circle_pad;
     std::unique_ptr<Input::AnalogDevice> mercs3d_c_stick;
+    bool mercs3d_finger_down = false;
+    float mercs3d_finger_x = 0.0f;
+    float mercs3d_finger_y = 0.0f;
     std::unique_ptr<Input::MotionDevice> motion_device;
     std::unique_ptr<Input::TouchDevice> controller_touch_device;
     std::unique_ptr<Input::TouchDevice> touch_device;

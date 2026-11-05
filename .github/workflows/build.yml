@@ -6,6 +6,7 @@ on:
     tags: [ "*" ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -14,7 +15,8 @@ permissions:
 
 jobs:
   source:
-    if: ${{ !github.head_ref }}
+    # Mercs3D fork: only the Windows MSVC build is needed.
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -44,6 +46,8 @@ jobs:
           sbom-path: artifacts/source.spdx.json
 
   linux-x86_64:
+    # Mercs3D fork: only the Windows MSVC build is needed.
+    if: false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -101,6 +105,8 @@ jobs:
           sbom-path: artifacts/linux-x86_64-${{ matrix.target }}.spdx.json
 
   linux-arm64:
+    # Mercs3D fork: only the Windows MSVC build is needed.
+    if: false
     runs-on: ubuntu-24.04-arm
     strategy:
       fail-fast: false
@@ -132,6 +138,8 @@ jobs:
         run: ./.ci/linux.sh
 
   macos:
+    # Mercs3D fork: only the Windows MSVC build is needed.
+    if: false
     runs-on: 'macos-26'
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -210,11 +218,6 @@ jobs:
         include:
         - target: msvc
           os: windows-latest
-        - target: mxe
-          os: ubuntu-latest
-          container:
-            image: opensauce04/azahar-build-environment:latest
-            options: -u 1001
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
     defaults:
@@ -317,6 +320,8 @@ jobs:
           sbom-path: artifacts/windows-${{ matrix.target }}.spdx.json
 
   android:
+    # Mercs3D fork: only the Windows MSVC build is needed.
+    if: false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -399,6 +404,8 @@ jobs:
           sbom-path: src/android/app/artifacts/android-${{ matrix.target }}.spdx.json
 
   docker:
+    # Mercs3D fork: only the Windows MSVC build is needed.
+    if: false
     strategy:
       fail-fast: false
       matrix:

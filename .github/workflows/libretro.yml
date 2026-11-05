@@ -1,11 +1,7 @@
 name: citra-libretro
 
+# Mercs3D fork: libretro core not needed; run manually only.
 on:
-  push:
-    branches: [ "*" ]
-    tags: [ "*" ]
-  pull_request:
-    branches: [ master ]
   workflow_dispatch:
 
 env:

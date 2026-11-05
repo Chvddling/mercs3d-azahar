@@ -147,62 +147,67 @@ void Module::LoadInputDevices() {
     }
 }
 
-void Module::UpdateMercs3DRightStick() {
+bool Module::IsMercs3DRunning() const {
     // Resident Evil: The Mercenaries 3D (USA) (Rev 1)
     constexpr u64 MERCS3D_TITLE_ID = 0x0004000000035900ULL;
-    // Literal-pool word read by the game's control update (FUN_004D40F8). It points at the
-    // vector used as the look-around ("survey") stick input, which is a constant (0,0) in the
-    // original game.
-    constexpr VAddr SURVEY_INPUT_PTR = 0x004D4784;
-    constexpr u32 SURVEY_INPUT_PTR_ORIGINAL = 0x008BE588;
-    // Unused padding at the end of the .text segment, used as our input slot (x, y floats).
-    constexpr VAddr SURVEY_INPUT_SLOT = 0x00811E00;
-    constexpr float DEADZONE = 0.15f;
-
-    if (!mercs3d_c_stick) {
-        return;
-    }
-
-    std::shared_ptr<Kernel::Process> process;
     for (const auto& p : system.Kernel().GetProcessList()) {
         if (p && p->codeset && p->codeset->program_id == MERCS3D_TITLE_ID) {
-            process = p;
-            break;
+            return true;
         }
     }
-    if (!process) {
-        return;
-    }
+    return false;
+}
 
-    auto& memory = system.Memory();
-    const u32 ptr = memory.Read32(*process, SURVEY_INPUT_PTR);
-    if (ptr == SURVEY_INPUT_PTR_ORIGINAL) {
-        memory.Write32(*process, SURVEY_INPUT_SLOT, 0);
-        memory.Write32(*process, SURVEY_INPUT_SLOT + 4, 0);
-        memory.Write32(*process, SURVEY_INPUT_PTR, SURVEY_INPUT_SLOT);
-        system.InvalidateCacheRange(SURVEY_INPUT_PTR, sizeof(u32));
-    } else if (ptr != SURVEY_INPUT_SLOT) {
-        // Unknown game version: leave it alone.
-        return;
+bool Module::UpdateMercs3DRightStickTouch(u16& touch_x, u16& touch_y) {
+    // The game's look-around camera is driven by dragging on the minimap (bottom screen).
+    // Turn the right stick (mapped to the C-Stick) into a virtual finger dragging there:
+    // the finger moves at a speed proportional to stick deflection, and lifts (camera snaps
+    // back) when the stick returns to center.
+    constexpr float DEADZONE = 0.15f;
+    // Where the virtual finger presses down, in bottom-screen pixels (320x240).
+    constexpr float ANCHOR_X = 160.0f;
+    constexpr float ANCHOR_Y = 120.0f;
+    // How far the finger may travel from the anchor, in pixels.
+    constexpr float MAX_TRAVEL = 110.0f;
+    // Finger speed at full deflection, in pixels per second. The pad updates 234 times/s.
+    constexpr float SPEED_PX_PER_SEC = 400.0f;
+    constexpr float UPDATES_PER_SEC = 234.0f;
+
+    if (!mercs3d_c_stick || !IsMercs3DRunning()) {
+        mercs3d_finger_down = false;
+        return false;
     }
 
     auto [x, y] = mercs3d_c_stick->GetStatus();
     const float magnitude = std::sqrt(x * x + y * y);
     if (magnitude < DEADZONE) {
-        x = 0.0f;
-        y = 0.0f;
-    } else {
-        // Rescale so the stick starts at 0 right outside the deadzone and reaches 1 at the edge.
-        const float scaled = std::min((magnitude - DEADZONE) / (1.0f - DEADZONE), 1.0f);
-        x = x / magnitude * scaled;
-        y = y / magnitude * scaled;
+        mercs3d_finger_down = false;
+        return false;
     }
+    const float scaled = std::min((magnitude - DEADZONE) / (1.0f - DEADZONE), 1.0f);
+    x = x / magnitude * scaled;
+    y = y / magnitude * scaled;
 
-    u32 x_bits, y_bits;
-    std::memcpy(&x_bits, &x, sizeof(float));
-    std::memcpy(&y_bits, &y, sizeof(float));
-    memory.Write32(*process, SURVEY_INPUT_SLOT, x_bits);
-    memory.Write32(*process, SURVEY_INPUT_SLOT + 4, y_bits);
+    if (!mercs3d_finger_down) {
+        mercs3d_finger_down = true;
+        mercs3d_finger_x = ANCHOR_X;
+        mercs3d_finger_y = ANCHOR_Y;
+    } else {
+        const float step = SPEED_PX_PER_SEC / UPDATES_PER_SEC;
+        mercs3d_finger_x += x * step;
+        mercs3d_finger_y -= y * step; // stick up = finger moves up the screen
+        mercs3d_finger_x =
+            std::clamp(mercs3d_finger_x, ANCHOR_X - MAX_TRAVEL, ANCHOR_X + MAX_TRAVEL);
+        mercs3d_finger_y =
+            std::clamp(mercs3d_finger_y, ANCHOR_Y - MAX_TRAVEL, ANCHOR_Y + MAX_TRAVEL);
+        mercs3d_finger_x = std::clamp(mercs3d_finger_x, 0.0f,
+                                      static_cast<float>(Core::kScreenBottomWidth - 1));
+        mercs3d_finger_y = std::clamp(mercs3d_finger_y, 0.0f,
+                                      static_cast<float>(Core::kScreenBottomHeight - 1));
+    }
+    touch_x = static_cast<u16>(mercs3d_finger_x);
+    touch_y = static_cast<u16>(mercs3d_finger_y);
+    return true;
 }
 
 void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
@@ -210,8 +215,6 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
 
     if (is_device_reload_pending.exchange(false))
         LoadInputDevices();
-
-    UpdateMercs3DRightStick();
 
     using namespace Settings::NativeButton;
 
@@ -370,6 +373,17 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
             pressed = true;
             touch_entry.x = std::min<u16>(input.touch_x, Core::kScreenBottomWidth - 1);
             touch_entry.y = std::min<u16>(input.touch_y, Core::kScreenBottomHeight - 1);
+        }
+        if (!pressed) {
+            u16 virtual_x, virtual_y;
+            if (UpdateMercs3DRightStickTouch(virtual_x, virtual_y)) {
+                pressed = true;
+                touch_entry.x = virtual_x;
+                touch_entry.y = virtual_y;
+            }
+        } else {
+            // A real touch always wins; drop the virtual finger so it restarts cleanly.
+            mercs3d_finger_down = false;
         }
         touch_entry.valid.Assign(pressed ? 1 : 0);
 
