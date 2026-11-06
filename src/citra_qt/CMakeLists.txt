@@ -69,6 +69,8 @@ add_library(citra_qt STATIC EXCLUDE_FROM_ALL
     configuration/configure_input.cpp
     configuration/configure_input.h
     configuration/configure_input.ui
+    configuration/configure_mercs3d.cpp
+    configuration/configure_mercs3d.h
     configuration/configure_motion_touch.cpp
     configuration/configure_motion_touch.h
     configuration/configure_motion_touch.ui

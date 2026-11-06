@@ -15,6 +15,7 @@
 #include "citra_qt/configuration/configure_hotkeys_controller.h"
 #include "citra_qt/configuration/configure_input.h"
 #include "citra_qt/configuration/configure_layout.h"
+#include "citra_qt/configuration/configure_mercs3d.h"
 #include "citra_qt/configuration/configure_network.h"
 #include "citra_qt/configuration/configure_storage.h"
 #include "citra_qt/configuration/configure_system.h"
@@ -42,7 +43,8 @@ ConfigureDialog::ConfigureDialog(QWidget* parent, HotkeyRegistry& registry_, Cor
       camera_tab{std::make_unique<ConfigureCamera>(this)},
       debug_tab{std::make_unique<ConfigureDebug>(is_powered_on, this)},
       storage_tab{std::make_unique<ConfigureStorage>(is_powered_on, this)},
-      web_tab{std::make_unique<ConfigureWeb>(this)}, ui_tab{std::make_unique<ConfigureUi>(this)} {
+      web_tab{std::make_unique<ConfigureWeb>(this)}, ui_tab{std::make_unique<ConfigureUi>(this)},
+      mercs3d_tab{std::make_unique<ConfigureMercs3D>(this)} {
     Settings::SetConfiguringGlobal(true);
 
     ui->setupUi(this);
@@ -61,6 +63,7 @@ ConfigureDialog::ConfigureDialog(QWidget* parent, HotkeyRegistry& registry_, Cor
     ui->tabWidget->addTab(storage_tab.get(), tr("Storage"));
     ui->tabWidget->addTab(web_tab.get(), tr("Network"));
     ui->tabWidget->addTab(ui_tab.get(), tr("UI"));
+    ui->tabWidget->addTab(mercs3d_tab.get(), tr("Mercs 3D"));
 
     hotkeys_tab->Populate(registry);
     hotkeys_controller_tab->Populate(registry);
@@ -102,6 +105,7 @@ void ConfigureDialog::SetConfiguration() {
     web_tab->SetConfiguration();
     ui_tab->SetConfiguration();
     storage_tab->SetConfiguration();
+    mercs3d_tab->SetConfiguration();
 }
 
 void ConfigureDialog::ApplyConfiguration() {
@@ -120,6 +124,7 @@ void ConfigureDialog::ApplyConfiguration() {
     web_tab->ApplyConfiguration();
     ui_tab->ApplyConfiguration();
     storage_tab->ApplyConfiguration();
+    mercs3d_tab->ApplyConfiguration();
     system.ApplySettings();
     Settings::LogSettings();
 }
@@ -129,12 +134,13 @@ Q_DECLARE_METATYPE(QList<QWidget*>);
 void ConfigureDialog::PopulateSelectionList() {
     ui->selectorList->clear();
 
-    const std::array<std::pair<QString, QList<QWidget*>>, 5> items{
+    const std::array<std::pair<QString, QList<QWidget*>>, 6> items{
         {{tr("General"), {general_tab.get(), web_tab.get(), debug_tab.get(), ui_tab.get()}},
          {tr("System"), {system_tab.get(), camera_tab.get(), storage_tab.get()}},
          {tr("Graphics"), {enhancements_tab.get(), layout_tab.get(), graphics_tab.get()}},
          {tr("Audio"), {audio_tab.get()}},
-         {tr("Controls"), {input_tab.get(), hotkeys_controller_tab.get(), hotkeys_tab.get()}}}};
+         {tr("Controls"), {input_tab.get(), hotkeys_controller_tab.get(), hotkeys_tab.get()}},
+         {tr("Mercs 3D"), {mercs3d_tab.get()}}}};
 
     for (const auto& entry : items) {
         auto* const item = new QListWidgetItem(entry.first);
@@ -196,7 +202,8 @@ void ConfigureDialog::UpdateVisibleTabs() {
         {debug_tab.get(), tr("Debug")},
         {storage_tab.get(), tr("Storage")},
         {web_tab.get(), tr("Network")},
-        {ui_tab.get(), tr("UI")}};
+        {ui_tab.get(), tr("UI")},
+        {mercs3d_tab.get(), tr("Mercs 3D")}};
 
     ui->tabWidget->clear();
 

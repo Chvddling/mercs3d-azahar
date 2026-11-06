@@ -13,6 +13,7 @@
 #include "core/3ds.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
+#include "core/mercs3d_layout.h"
 #include "core/mercs3d_minimap.h"
 #include "video_core/gpu.h"
 #include "video_core/pica/pica_core.h"
@@ -1038,6 +1039,17 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
     // Apply the initial default opacity value; Needed to avoid flickering
     ApplySecondLayerOpacity(1.0f);
 
+    // Resident Evil: The Mercenaries 3D: one screen during matches and on the results screen.
+    const auto mercs3d_screen = GetMercs3DScreen(layout);
+    if (layout.top_screen_enabled) {
+        Mercs3D::SetSingleScreenShown(mercs3d_screen != Mercs3D::GameScreen::Other);
+    }
+    if (mercs3d_screen != Mercs3D::GameScreen::Other) {
+        DrawMercs3DSingleScreen(layout, mercs3d_screen);
+        scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
+        return;
+    }
+
     if (!Settings::values.swap_screen.GetValue()) {
         DrawTopScreen(layout, top_screen);
         draw_info.layer = 0;
@@ -1070,32 +1082,40 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
 }
 
 void RendererVulkan::DrawMercs3DMinimap(const Layout::FramebufferLayout& layout) {
-    // Enemy markers on Resident Evil: The Mercenaries 3D's minimap, drawn as solid squares
-    // over the bottom screen (only for the normal, landscape bottom screen).
+    // Enemy markers on Resident Evil: The Mercenaries 3D's minimap, drawn over the normal,
+    // landscape bottom screen.
     if (!layout.bottom_screen_enabled || !layout.is_rotated ||
         layout.render_3d_mode != Settings::StereoRenderOption::Off) {
         return;
     }
+    const auto& screen = layout.bottom_screen;
+    const float sx = static_cast<float>(screen.GetWidth()) / Core::kScreenBottomWidth;
+    const float sy = static_cast<float>(screen.GetHeight()) / Core::kScreenBottomHeight;
+    DrawMercs3DDots(layout, static_cast<float>(screen.left), static_cast<float>(screen.top), sx, sy,
+                    {0.0f, 0.0f, Core::kScreenBottomWidth, Core::kScreenBottomHeight});
+}
+
+void RendererVulkan::DrawMercs3DDots(const Layout::FramebufferLayout& layout, float left, float top,
+                                     float sx, float sy, const Mercs3D::BottomRegion& region) {
+    // Bottom screen pixel (px, py) lands at (left + (px - region.x) * sx, top + ...). Dots outside
+    // the region are skipped.
     const auto dots = Mercs3D::GetMinimapDots(system);
     if (dots.empty()) {
         return;
     }
     const auto& cfg = Mercs3D::GetMinimapSettings();
-    const auto& screen = layout.bottom_screen;
-    const float sx = static_cast<float>(screen.GetWidth()) / Core::kScreenBottomWidth;
-    const float sy = static_cast<float>(screen.GetHeight()) / Core::kScreenBottomHeight;
 
     auto make_rect = [&](float cx, float cy, float size) {
         const float half = size * 0.5f;
+        const float wx = left + (cx - region.x) * sx;
+        const float wy = top + (cy - region.y) * sy;
         const s32 max_x = std::max(static_cast<s32>(layout.width) - 1, 0);
         const s32 max_y = std::max(static_cast<s32>(layout.height) - 1, 0);
-        const s32 l =
-            std::clamp(static_cast<s32>(std::lround(screen.left + (cx - half) * sx)), 0, max_x);
-        const s32 t =
-            std::clamp(static_cast<s32>(std::lround(screen.top + (cy - half) * sy)), 0, max_y);
-        const s32 r = std::min(static_cast<s32>(std::lround(screen.left + (cx + half) * sx)),
-                               static_cast<s32>(layout.width));
-        const s32 b = std::min(static_cast<s32>(std::lround(screen.top + (cy + half) * sy)),
+        const s32 l = std::clamp(static_cast<s32>(std::lround(wx - half * sx)), 0, max_x);
+        const s32 t = std::clamp(static_cast<s32>(std::lround(wy - half * sy)), 0, max_y);
+        const s32 r =
+            std::min(static_cast<s32>(std::lround(wx + half * sx)), static_cast<s32>(layout.width));
+        const s32 b = std::min(static_cast<s32>(std::lround(wy + half * sy)),
                                static_cast<s32>(layout.height));
         return vk::ClearRect{
             .rect = {{l, t},
@@ -1107,8 +1127,15 @@ void RendererVulkan::DrawMercs3DMinimap(const Layout::FramebufferLayout& layout)
 
     std::vector<vk::ClearRect> outline, near_dots, far_dots;
     for (const auto& dot : dots) {
+        if (dot.x < region.x || dot.y < region.y || dot.x > region.x + region.w ||
+            dot.y > region.y + region.h) {
+            continue;
+        }
         outline.push_back(make_rect(dot.x, dot.y, cfg.dot_size + 2.0f));
         (dot.other_floor ? far_dots : near_dots).push_back(make_rect(dot.x, dot.y, cfg.dot_size));
+    }
+    if (outline.empty()) {
+        return;
     }
 
     scheduler.Record([outline = std::move(outline), near_dots = std::move(near_dots),
@@ -1133,6 +1160,109 @@ void RendererVulkan::DrawMercs3DMinimap(const Layout::FramebufferLayout& layout)
         clear(far_dots, 0.50f, 0.08f, 0.08f);
         clear(near_dots, 1.0f, 0.15f, 0.15f);
     });
+}
+
+Mercs3D::GameScreen RendererVulkan::GetMercs3DScreen(const Layout::FramebufferLayout& layout) {
+    if (!layout.top_screen_enabled || layout.render_3d_mode != Settings::StereoRenderOption::Off) {
+        return Mercs3D::GameScreen::Other;
+    }
+    if (!Mercs3D::GetLayoutSettings().single_screen) {
+        return Mercs3D::GameScreen::Other;
+    }
+    return Mercs3D::GetGameScreen(system);
+}
+
+void RendererVulkan::DrawScreenRegion(u32 screen_id, const Mercs3D::BottomRegion& region, float x,
+                                      float y, float w, float h) {
+    // Like DrawSingleScreen (landscape), but only shows `region` of the bottom screen.
+    const ScreenInfo& screen_info = screen_infos[screen_id];
+    const auto& tc = screen_info.texcoords;
+    const float fx0 = region.x / Core::kScreenBottomWidth;
+    const float fx1 = (region.x + region.w) / Core::kScreenBottomWidth;
+    const float fy0 = region.y / Core::kScreenBottomHeight;
+    const float fy1 = (region.y + region.h) / Core::kScreenBottomHeight;
+    const float u0 = tc.bottom + fy0 * (tc.top - tc.bottom);
+    const float u1 = tc.bottom + fy1 * (tc.top - tc.bottom);
+    const float v0 = tc.left + fx0 * (tc.right - tc.left);
+    const float v1 = tc.left + fx1 * (tc.right - tc.left);
+
+    const std::array<ScreenRectVertex, 4> vertices = {{
+        ScreenRectVertex(x, y, u0, v0),
+        ScreenRectVertex(x + w, y, u0, v1),
+        ScreenRectVertex(x, y + h, u1, v0),
+        ScreenRectVertex(x + w, y + h, u1, v1),
+    }};
+
+    const u64 size = sizeof(ScreenRectVertex) * vertices.size();
+    auto [data, offset, invalidate] = vertex_buffer.Map(size, 16);
+    std::memcpy(data, vertices.data(), size);
+    vertex_buffer.Commit(size);
+
+    const u32 scale_factor = GetResolutionScaleFactor();
+    draw_info.i_resolution =
+        Common::MakeVec(static_cast<f32>(screen_info.texture.width * scale_factor),
+                        static_cast<f32>(screen_info.texture.height * scale_factor),
+                        1.0f / static_cast<f32>(screen_info.texture.width * scale_factor),
+                        1.0f / static_cast<f32>(screen_info.texture.height * scale_factor));
+    draw_info.o_resolution = Common::MakeVec(h, w, 1.0f / h, 1.0f / w);
+    draw_info.screen_id_l = screen_id;
+
+    scheduler.Record([this, offset = offset, info = draw_info](vk::CommandBuffer cmdbuf) {
+        const u32 first_vertex = static_cast<u32>(offset) / sizeof(ScreenRectVertex);
+        cmdbuf.pushConstants(*present_pipeline_layout,
+                             vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex,
+                             0, sizeof(info), &info);
+
+        cmdbuf.bindVertexBuffers(0, vertex_buffer.Handle(), {0});
+        cmdbuf.draw(4, 1, first_vertex, 0);
+    });
+}
+
+void RendererVulkan::DrawMercs3DSingleScreen(const Layout::FramebufferLayout& layout,
+                                             Mercs3D::GameScreen screen) {
+    const auto cfg = Mercs3D::GetLayoutSettings();
+
+    // Game area: the whole window, or the largest centered 16:9 rectangle.
+    const float win_w = static_cast<float>(layout.width);
+    const float win_h = static_cast<float>(layout.height);
+    float gx = 0.0f, gy = 0.0f, gw = win_w, gh = win_h;
+    if (cfg.widescreen && win_w > 0.0f && win_h > 0.0f) {
+        constexpr float aspect = 16.0f / 9.0f;
+        if (win_w / win_h > aspect) {
+            gw = std::floor(win_h * aspect);
+            gx = std::floor((win_w - gw) * 0.5f);
+        } else {
+            gh = std::floor(win_w / aspect);
+            gy = std::floor((win_h - gh) * 0.5f);
+        }
+    }
+
+    draw_info.layer = 0;
+    const int eye = static_cast<int>(Settings::values.mono_render_option.GetValue());
+    DrawSingleScreen(eye, gx, gy, gw, gh, Layout::DisplayOrientation::Landscape);
+
+    if (screen != Mercs3D::GameScreen::Match) {
+        return;
+    }
+
+    auto draw_overlay = [&](const Mercs3D::Overlay& overlay, const Mercs3D::BottomRegion& region,
+                            bool with_dots) {
+        if (!overlay.enabled || overlay.alpha <= 0.0f) {
+            return;
+        }
+        const float h = std::round(overlay.size * gh);
+        const float w = std::round(h * region.w / region.h);
+        const float x = std::round(gx + overlay.x * gw);
+        const float y = std::round(gy + overlay.y * gh);
+        ApplySecondLayerOpacity(std::clamp(overlay.alpha, 0.0f, 1.0f));
+        DrawScreenRegion(2, region, x, y, w, h);
+        ApplySecondLayerOpacity(1.0f);
+        if (with_dots) {
+            DrawMercs3DDots(layout, x, y, w / region.w, h / region.h, region);
+        }
+    };
+    draw_overlay(cfg.items, Mercs3D::ITEMS_REGION, false);
+    draw_overlay(cfg.minimap, Mercs3D::MINIMAP_REGION, true);
 }
 
 void RendererVulkan::DrawCursor(const Layout::FramebufferLayout& layout) {

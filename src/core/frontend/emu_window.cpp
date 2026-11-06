@@ -8,6 +8,7 @@
 #include "core/3ds.h"
 #include "core/frontend/emu_window.h"
 #include "core/frontend/input.h"
+#include "core/mercs3d_layout.h"
 
 namespace Frontend {
 /// We need a global touch state that is shared across the different window instances
@@ -125,6 +126,9 @@ void EmuWindow::CreateTouchState() {
 }
 
 bool EmuWindow::TouchPressed(unsigned framebuffer_x, unsigned framebuffer_y) {
+    // The bottom screen is hidden in Mercs 3D's single screen layout.
+    if (Mercs3D::IsSingleScreenShown())
+        return false;
     if (!framebuffer_layout.IsWithinTouchscreen(framebuffer_x, framebuffer_y))
         return false;
     Settings::StereoRenderOption render_3d_mode = get3DMode();

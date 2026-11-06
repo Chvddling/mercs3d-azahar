@@ -6,6 +6,7 @@
 
 #include "common/common_types.h"
 #include "common/math_util.h"
+#include "core/mercs3d_layout.h"
 #include "video_core/renderer_base.h"
 #ifdef HAVE_LIBRETRO
 #include "citra_libretro/libretro_vk.h"
@@ -115,6 +116,13 @@ private:
 
     void DrawCursor(const Layout::FramebufferLayout& layout);
     void DrawMercs3DMinimap(const Layout::FramebufferLayout& layout);
+    void DrawMercs3DDots(const Layout::FramebufferLayout& layout, float left, float top, float sx,
+                         float sy, const Mercs3D::BottomRegion& region);
+    Mercs3D::GameScreen GetMercs3DScreen(const Layout::FramebufferLayout& layout);
+    void DrawScreenRegion(u32 screen_id, const Mercs3D::BottomRegion& region, float x, float y,
+                          float w, float h);
+    void DrawMercs3DSingleScreen(const Layout::FramebufferLayout& layout,
+                                 Mercs3D::GameScreen screen);
 
     void LoadFBToScreenInfo(const Pica::FramebufferConfig& framebuffer, ScreenInfo& screen_info,
                             bool right_eye);

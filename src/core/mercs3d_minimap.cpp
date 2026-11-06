@@ -15,14 +15,12 @@
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
 #include "core/memory.h"
+#include "core/mercs3d_memory.h"
 #include "core/mercs3d_minimap.h"
 
 namespace Mercs3D {
 
 namespace {
-
-// Resident Evil: The Mercenaries 3D (USA) (Rev 1)
-constexpr u64 MERCS3D_TITLE_ID = 0x0004000000035900ULL;
 
 // Globals (all in .bss/.data of the Rev 1 executable).
 constexpr VAddr S_ID_COCKPIT = 0x008D586C; // sIDCockpit*
@@ -47,48 +45,6 @@ constexpr u32 CHARA_POS = 0x40;          // vec3 world position (cm)
 constexpr u32 PLAYER_IS_LOCAL = 0xCC0;   // u8, 1 for the player on this console
 constexpr u32 CHICKEN_VTABLE = 0x884894; // uMerceChicken: not an enemy
 constexpr int MAX_LIST_LENGTH = 128;
-
-class Reader {
-public:
-    explicit Reader(const Kernel::Process& process_)
-        : page_table(*process_.vm_manager.page_table) {}
-
-    // Reads only pages backed by plain memory. Going through MemorySystem::Read would flush the
-    // GPU cache for GPU-owned pages, which crashes when done in the middle of presenting a frame
-    // (seen when leaving a match, as the stage's memory is released and reused).
-    bool U32(VAddr addr, u32& out) const {
-        if ((addr & 3) != 0) {
-            return false;
-        }
-        const u8* page = page_table.pointers[addr >> Memory::CITRA_PAGE_BITS];
-        if (page == nullptr) {
-            return false;
-        }
-        std::memcpy(&out, page + (addr & Memory::CITRA_PAGE_MASK), sizeof(out));
-        return true;
-    }
-
-    bool F32(VAddr addr, float& out) const {
-        u32 raw;
-        if (!U32(addr, raw)) {
-            return false;
-        }
-        out = std::bit_cast<float>(raw);
-        return std::isfinite(out);
-    }
-
-    bool Ptr(VAddr addr, VAddr& out) const {
-        u32 raw;
-        if (!U32(addr, raw) || raw < 0x08000000 || raw >= 0x10000000) {
-            return false;
-        }
-        out = raw;
-        return true;
-    }
-
-private:
-    Memory::PageTable& page_table;
-};
 
 /// The game's world -> map conversion (FUN_004acfb8): a separate scale for each sign of X and Z.
 struct MapScale {
@@ -178,13 +134,7 @@ std::vector<MinimapDot> GetMinimapDots(Core::System& system) {
         return dots;
     }
 
-    std::shared_ptr<Kernel::Process> game;
-    for (const auto& p : system.Kernel().GetProcessList()) {
-        if (p && p->codeset && p->codeset->program_id == MERCS3D_TITLE_ID) {
-            game = p;
-            break;
-        }
-    }
+    const auto game = FindGameProcess(system);
     if (!game) {
         return dots;
     }

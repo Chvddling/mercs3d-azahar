@@ -33,6 +33,7 @@ class ConfigureDebug;
 class ConfigureStorage;
 class ConfigureWeb;
 class ConfigureUi;
+class ConfigureMercs3D;
 
 class ConfigureDialog : public QDialog {
     Q_OBJECT
@@ -76,4 +77,5 @@ private:
     std::unique_ptr<ConfigureStorage> storage_tab;
     std::unique_ptr<ConfigureWeb> web_tab;
     std::unique_ptr<ConfigureUi> ui_tab;
+    std::unique_ptr<ConfigureMercs3D> mercs3d_tab;
 };
