@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <cstring>
 #include <mutex>
 #include <string>
 #include "common/common_types.h"
@@ -49,15 +50,21 @@ constexpr int MAX_LIST_LENGTH = 128;
 
 class Reader {
 public:
-    Reader(Memory::MemorySystem& memory_, const Kernel::Process& process_)
-        : memory(memory_), process(process_) {}
+    explicit Reader(const Kernel::Process& process_)
+        : page_table(*process_.vm_manager.page_table) {}
 
+    // Reads only pages backed by plain memory. Going through MemorySystem::Read would flush the
+    // GPU cache for GPU-owned pages, which crashes when done in the middle of presenting a frame
+    // (seen when leaving a match, as the stage's memory is released and reused).
     bool U32(VAddr addr, u32& out) const {
-        if ((addr & 3) != 0 || !memory.IsValidVirtualAddress(process, addr) ||
-            !memory.IsValidVirtualAddress(process, addr + 3)) {
+        if ((addr & 3) != 0) {
             return false;
         }
-        out = memory.Read32(process, addr);
+        const u8* page = page_table.pointers[addr >> Memory::CITRA_PAGE_BITS];
+        if (page == nullptr) {
+            return false;
+        }
+        std::memcpy(&out, page + (addr & Memory::CITRA_PAGE_MASK), sizeof(out));
         return true;
     }
 
@@ -80,8 +87,7 @@ public:
     }
 
 private:
-    Memory::MemorySystem& memory;
-    const Kernel::Process& process;
+    Memory::PageTable& page_table;
 };
 
 /// The game's world -> map conversion (FUN_004acfb8): a separate scale for each sign of X and Z.
@@ -182,7 +188,7 @@ std::vector<MinimapDot> GetMinimapDots(Core::System& system) {
     if (!game) {
         return dots;
     }
-    const Reader r(system.Memory(), *game);
+    const Reader r(*game);
 
     // Is the minimap up?
     VAddr cockpit, sub, map, texture;

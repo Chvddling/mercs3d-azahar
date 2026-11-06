@@ -1087,8 +1087,12 @@ void RendererVulkan::DrawMercs3DMinimap(const Layout::FramebufferLayout& layout)
 
     auto make_rect = [&](float cx, float cy, float size) {
         const float half = size * 0.5f;
-        const s32 l = std::max(static_cast<s32>(std::lround(screen.left + (cx - half) * sx)), 0);
-        const s32 t = std::max(static_cast<s32>(std::lround(screen.top + (cy - half) * sy)), 0);
+        const s32 max_x = std::max(static_cast<s32>(layout.width) - 1, 0);
+        const s32 max_y = std::max(static_cast<s32>(layout.height) - 1, 0);
+        const s32 l =
+            std::clamp(static_cast<s32>(std::lround(screen.left + (cx - half) * sx)), 0, max_x);
+        const s32 t =
+            std::clamp(static_cast<s32>(std::lround(screen.top + (cy - half) * sy)), 0, max_y);
         const s32 r = std::min(static_cast<s32>(std::lround(screen.left + (cx + half) * sx)),
                                static_cast<s32>(layout.width));
         const s32 b = std::min(static_cast<s32>(std::lround(screen.top + (cy + half) * sy)),
