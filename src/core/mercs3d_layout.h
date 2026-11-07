@@ -31,7 +31,8 @@ struct BottomRegion {
     float x, y, w, h;
 };
 
-constexpr BottomRegion MINIMAP_REGION{162.0f, 40.0f, 158.0f, 160.0f};
+// Inset a few pixels so the overlay does not pick up the panel border around the map.
+constexpr BottomRegion MINIMAP_REGION{166.0f, 44.0f, 150.0f, 152.0f};
 constexpr BottomRegion ITEMS_REGION{2.0f, 10.0f, 138.0f, 219.0f};
 
 struct LayoutSettings {
