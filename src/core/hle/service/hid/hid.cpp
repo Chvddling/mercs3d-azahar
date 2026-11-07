@@ -29,6 +29,7 @@
 #include "core/hle/service/ir/ir_user.h"
 #include "core/hle/service/service.h"
 #include "core/memory.h"
+#include "core/mercs3d_spawn.h"
 #include "core/movie.h"
 
 SERVICE_CONSTRUCT_IMPL(Service::HID::Module)
@@ -311,6 +312,23 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
 
     if (is_device_reload_pending.exchange(false))
         LoadInputDevices();
+
+    // Mercenaries 3D: starting point menu while a mission loads (blocks until answered).
+    Mercs3D::UpdateSpawnMenu(system, [this] {
+        using namespace Settings::NativeButton;
+        PadState pad{};
+        if (!buttons[A - BUTTON_HID_BEGIN]) {
+            return u32{0};
+        }
+        pad.a.Assign(buttons[A - BUTTON_HID_BEGIN]->GetStatus());
+        pad.y.Assign(buttons[Y - BUTTON_HID_BEGIN]->GetStatus());
+        pad.left.Assign(buttons[Left - BUTTON_HID_BEGIN]->GetStatus());
+        pad.right.Assign(buttons[Right - BUTTON_HID_BEGIN]->GetStatus());
+        const float x = std::get<0>(circle_pad->GetStatus());
+        pad.circle_left.Assign(x < -0.5f);
+        pad.circle_right.Assign(x > 0.5f);
+        return pad.hex;
+    });
 
     using namespace Settings::NativeButton;
 

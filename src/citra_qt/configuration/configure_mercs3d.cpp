@@ -59,6 +59,25 @@ ConfigureMercs3D::ConfigureMercs3D(QWidget* parent) : QWidget(parent) {
     layout->addWidget(MakeOverlayGroup(tr("Minimap"), minimap));
     layout->addWidget(MakeOverlayGroup(tr("Item grid"), items));
 
+    auto* spawn_group = new QGroupBox(tr("Starting point"));
+    auto* spawn_layout = new QVBoxLayout(spawn_group);
+    spawn_ask = new QCheckBox(tr("Ask where to start when a mission with several starting points "
+                                 "loads (single player)"));
+    spawn_forget = new QPushButton;
+    auto* forget_row = new QHBoxLayout;
+    forget_row->addWidget(spawn_forget);
+    forget_row->addStretch();
+    spawn_layout->addWidget(spawn_ask);
+    spawn_layout->addLayout(forget_row);
+    layout->addWidget(spawn_group);
+    spawn = Mercs3D::GetSpawnSettings();
+    spawn_ask->setChecked(spawn.ask);
+    UpdateForgetButton();
+    connect(spawn_forget, &QPushButton::clicked, this, [this] {
+        spawn.remembered.clear();
+        UpdateForgetButton();
+    });
+
     auto* reset = new QPushButton(tr("Restore defaults"));
     auto* reset_row = new QHBoxLayout;
     reset_row->addStretch();
@@ -141,9 +160,18 @@ void ConfigureMercs3D::SetConfiguration() {
     Load(Mercs3D::GetLayoutSettings());
 }
 
+void ConfigureMercs3D::UpdateForgetButton() {
+    spawn_forget->setText(
+        tr("Forget remembered starting points (%1)").arg(spawn.remembered.size()));
+    spawn_forget->setEnabled(!spawn.remembered.empty());
+}
+
 void ConfigureMercs3D::ApplyConfiguration() {
     Mercs3D::SetLayoutSettings(Read());
     Mercs3D::SaveLayoutSettings();
+    spawn.ask = spawn_ask->isChecked();
+    Mercs3D::SetSpawnSettings(spawn);
+    Mercs3D::SaveSpawnSettings();
     original = Read();
     applied = true;
 }

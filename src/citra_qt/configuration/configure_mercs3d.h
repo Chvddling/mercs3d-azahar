@@ -6,8 +6,10 @@
 
 #include <QWidget>
 #include "core/mercs3d_layout.h"
+#include "core/mercs3d_spawn.h"
 
 class QCheckBox;
+class QPushButton;
 class QSpinBox;
 
 /// Settings tab for the Resident Evil: The Mercenaries 3D single screen layout.
@@ -40,6 +42,11 @@ private:
     QCheckBox* widescreen;
     OverlayControls minimap{};
     OverlayControls items{};
+
+    QCheckBox* spawn_ask;
+    QPushButton* spawn_forget;
+    Mercs3D::SpawnSettings spawn;
+    void UpdateForgetButton();
 
     Mercs3D::LayoutSettings original;
     bool applied = false;

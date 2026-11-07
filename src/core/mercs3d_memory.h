@@ -60,10 +60,44 @@ public:
         return std::isfinite(out);
     }
 
+    bool U8(VAddr addr, u8& out) const {
+        const u8* page = page_table.pointers[addr >> Memory::CITRA_PAGE_BITS];
+        if (page == nullptr) {
+            return false;
+        }
+        out = page[addr & Memory::CITRA_PAGE_MASK];
+        return true;
+    }
+
+    /// Writes one byte of game data (plain memory only). Call from the emulation thread.
+    bool WriteU8(VAddr addr, u8 value) const {
+        u8* page = page_table.pointers[addr >> Memory::CITRA_PAGE_BITS];
+        if (page == nullptr) {
+            return false;
+        }
+        page[addr & Memory::CITRA_PAGE_MASK] = value;
+        return true;
+    }
+
     /// Reads a pointer into the application heap.
     bool Ptr(VAddr addr, VAddr& out) const {
         u32 raw;
         if (!U32(addr, raw) || raw < 0x08000000 || raw >= 0x10000000) {
+            return false;
+        }
+        out = raw;
+        return true;
+    }
+
+    /// Reads a pointer into the application heap or the linear heap.
+    bool AnyPtr(VAddr addr, VAddr& out) const {
+        u32 raw;
+        if (!U32(addr, raw)) {
+            return false;
+        }
+        const bool heap = raw >= 0x08000000 && raw < 0x10000000;
+        const bool linear = raw >= 0x14000000 && raw < 0x1C000000;
+        if (!heap && !linear) {
             return false;
         }
         out = raw;

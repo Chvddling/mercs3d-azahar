@@ -115,6 +115,7 @@ private:
     std::set<Hotkey*> hotkeys_currently_held{};
 };
 
+class Mercs3DSpawnMenu;
 class GMainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -373,6 +374,7 @@ private:
     Core::Movie& movie;
     GApplicationEventFilter* filter = new GApplicationEventFilter();
     GRenderWindow* render_window;
+    Mercs3DSpawnMenu* mercs3d_spawn_menu = nullptr;
     GRenderWindow* secondary_window;
 
     GameListPlaceholder* game_list_placeholder;

@@ -128,6 +128,7 @@ Q_IMPORT_PLUGIN(QDarwinCameraPermissionPlugin);
 
 #ifdef ENABLE_DISCORD_RPC
 #include "citra_qt/discord_impl.h"
+#include "citra_qt/mercs3d_spawn_menu.h"
 #endif
 
 #ifdef QT_STATICPLUGIN
@@ -466,6 +467,8 @@ GMainWindow::GMainWindow(Core::System& system_)
     ConnectAppEvents();
     ConnectMenuEvents();
     ConnectWidgetEvents();
+
+    mercs3d_spawn_menu = new Mercs3DSpawnMenu(this);
 
     LOG_INFO(Frontend, "Azahar Version: {} | {}-{}", Common::g_build_fullname, Common::g_scm_branch,
              Common::g_scm_desc);
@@ -1582,6 +1585,7 @@ void GMainWindow::BootGame(const QString& filename) {
     if (emu_thread) {
         ShutdownGame();
     }
+    Mercs3D::ResetSpawnMenu();
 
     // NOTE: We could make this not hardcoded, but it's a temp thing anyway so probs not worth. -OS
     if (Settings::values.graphics_api.GetValue() == Settings::GraphicsAPI::Vulkan &&
@@ -1758,6 +1762,9 @@ void GMainWindow::ShutdownGame() {
     if (!emulation_running) {
         return;
     }
+
+    // Release the emulation thread if it is waiting for the starting point menu.
+    mercs3d_spawn_menu->Cancel();
 
     if (ui->action_Fullscreen->isChecked()) {
         HideFullscreen();

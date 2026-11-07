@@ -142,6 +142,8 @@ add_library(citra_qt STATIC EXCLUDE_FROM_ALL
     loading_screen.h
     loading_screen.ui
     main.ui
+    mercs3d_spawn_menu.cpp
+    mercs3d_spawn_menu.h
     movie/movie_play_dialog.cpp
     movie/movie_play_dialog.h
     movie/movie_play_dialog.ui
