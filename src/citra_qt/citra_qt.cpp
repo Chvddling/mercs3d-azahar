@@ -129,6 +129,7 @@ Q_IMPORT_PLUGIN(QDarwinCameraPermissionPlugin);
 #ifdef ENABLE_DISCORD_RPC
 #include "citra_qt/discord_impl.h"
 #include "citra_qt/mercs3d_spawn_menu.h"
+#include "core/mercs3d_rom.h"
 #endif
 
 #ifdef QT_STATICPLUGIN
@@ -1676,6 +1677,20 @@ void GMainWindow::BootGame(const QString& filename) {
         render_window->ReleaseRenderTarget();
         secondary_window->ReleaseRenderTarget();
         return;
+    }
+
+    if (Mercs3D::GetRomCheck() == Mercs3D::RomCheck::Incompatible) {
+        QMessageBox::warning(
+            this, tr("Unsupported version of the game"),
+            tr("This build is made for <b>Resident Evil: The Mercenaries 3D (USA) (En,Fr) "
+               "(Rev 1)</b>, and this copy of the game is a different release or has modified "
+               "code.<br><br>The game will run, but the built-in game patches (60 fps, analog "
+               "aiming, grenades on the D-pad, wider view), the unlocked starter save, the "
+               "minimap enemies, the single screen layout and the starting point menu are "
+               "turned off.<br><br>Code SHA-256 of this copy:<br><tt>%1</tt><br>Expected:<br>"
+               "<tt>%2</tt>")
+                .arg(QString::fromStdString(Mercs3D::GetRomHash()),
+                     QString::fromStdString(Mercs3D::ExpectedRomHash())));
     }
 
     // Set everything up

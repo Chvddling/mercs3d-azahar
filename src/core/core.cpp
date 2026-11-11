@@ -33,6 +33,7 @@
 #include "core/file_sys/ncch_container.h"
 #include "core/frontend/image_interface.h"
 #include "core/mercs3d_patches.h"
+#include "core/mercs3d_rom.h"
 #ifdef ENABLE_GDBSTUB
 #include "core/gdbstub/gdbstub.h"
 #endif
@@ -497,6 +498,7 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
     LoadAMTitles();
 
     std::shared_ptr<Kernel::Process> process;
+    Mercs3D::ResetRomCheck();
     const Loader::ResultStatus load_result{app_loader->Load(process)};
     if (Loader::ResultStatus::Success != load_result) {
         LOG_CRITICAL(Core, "Failed to load ROM (Error {})!", load_result);

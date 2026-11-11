@@ -19,8 +19,11 @@ namespace Mercs3D {
 /// Resident Evil: The Mercenaries 3D (USA) (Rev 1)
 constexpr u64 MERCS3D_TITLE_ID = 0x0004000000035900ULL;
 
+/// Only the supported release (checked by hash in mercs3d_rom.cpp) gets the memory features.
+bool IsSupportedRomLoaded();
+
 inline std::shared_ptr<Kernel::Process> FindGameProcess(Core::System& system) {
-    if (!system.IsPoweredOn()) {
+    if (!system.IsPoweredOn() || !IsSupportedRomLoaded()) {
         return nullptr;
     }
     for (const auto& p : system.Kernel().GetProcessList()) {

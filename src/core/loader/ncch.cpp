@@ -28,6 +28,7 @@
 #include "core/loader/ncch.h"
 #include "core/loader/smdh.h"
 #include "core/memory.h"
+#include "core/mercs3d_rom.h"
 #include "core/system_titles.h"
 #include "network/network.h"
 
@@ -138,6 +139,7 @@ ResultStatus AppLoader_NCCH::LoadExec(std::shared_ptr<Kernel::Process>& process)
 
         std::string process_name = Common::StringFromFixedZeroTerminatedBuffer(
             (const char*)overlay_ncch->exheader_header.codeset_info.name, 8);
+        Mercs3D::CheckGameCode(program_id, process_name, code);
 
         std::shared_ptr<CodeSet> codeset = system.Kernel().CreateCodeSet(process_name, program_id);
 

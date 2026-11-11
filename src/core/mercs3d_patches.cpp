@@ -160,7 +160,7 @@ const Patch* FindPatch(const Cheats::CheatBase& cheat) {
 
 std::vector<std::shared_ptr<Cheats::CheatBase>> BuiltinCheats(u64 title_id) {
     std::vector<std::shared_ptr<Cheats::CheatBase>> cheats;
-    if (title_id != MERCS3D_TITLE_ID) {
+    if (title_id != MERCS3D_TITLE_ID || !IsSupportedRomLoaded()) {
         return cheats;
     }
     for (const Patch& patch : PATCHES) {
@@ -190,7 +190,7 @@ bool BuiltinCheatEnabled(const Cheats::CheatBase& cheat) {
 }
 
 void InstallDefaultSave(u64 title_id) {
-    if (title_id != MERCS3D_TITLE_ID) {
+    if (title_id != MERCS3D_TITLE_ID || !IsSupportedRomLoaded()) {
         return;
     }
     // Same layout as FileSys::ArchiveSource_SDSaveData (SD save data of an installed title).

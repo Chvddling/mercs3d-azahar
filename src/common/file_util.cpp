@@ -6,11 +6,13 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <string_view>
 #include <unordered_map>
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -932,6 +934,49 @@ std::unordered_map<UserPath, std::string> g_paths;
 std::unordered_map<UserPath, std::string> g_default_paths;
 } // namespace
 
+#ifdef _WIN32
+namespace {
+/// First start of the portable build: copy the emulator settings (controls, graphics) and the
+/// Mercs 3D settings from an installed Azahar, leaving out its storage and screenshot folders so
+/// the portable copy keeps its own. Saves, states and cheats are not copied.
+void ImportMercs3DConfig(const std::string& installed_dir, const std::string& portable_dir) {
+    const std::string from = installed_dir + CONFIG_DIR DIR_SEP;
+    const std::string to = portable_dir + CONFIG_DIR DIR_SEP;
+    if (!FileUtil::IsDirectory(from) || !FileUtil::CreateFullPath(to)) {
+        return;
+    }
+    std::string text;
+    if (FileUtil::ReadFileToString(true, from + "qt-config.ini", text) > 0) {
+        static constexpr std::array<std::string_view, 4> skipped{
+            "use_custom_storage", "nand_directory", "sdmc_directory", "Paths\\screenshotPath"};
+        std::string out;
+        std::size_t pos = 0;
+        while (pos < text.size()) {
+            std::size_t end = text.find('\n', pos);
+            if (end == std::string::npos) {
+                end = text.size();
+            }
+            const std::string_view line(text.data() + pos, end - pos);
+            const bool skip = std::any_of(skipped.begin(), skipped.end(), [&](auto key) {
+                return line.starts_with(key) &&
+                       (line.size() == key.size() || line[key.size()] == '=' ||
+                        line[key.size()] == '\\');
+            });
+            if (!skip) {
+                out.append(line);
+                out.push_back('\n');
+            }
+            pos = end + 1;
+        }
+        FileUtil::WriteStringToFile(true, to + "qt-config.ini", out);
+    }
+    if (FileUtil::Exists(from + "mercs3d.ini")) {
+        FileUtil::Copy(from + "mercs3d.ini", to + "mercs3d.ini");
+    }
+}
+} // namespace
+#endif
+
 void SetUserPath(const std::string& path) {
     std::string& user_path = g_paths[UserPath::UserDir];
 
@@ -946,6 +991,13 @@ void SetUserPath(const std::string& path) {
         std::string& legacy_citra_user_path = g_paths[UserPath::LegacyCitraUserDir];
         std::string& legacy_lime3ds_user_path = g_paths[UserPath::LegacyLime3DSUserDir];
 
+        // Mercs3D: portable by default. The "user" folder next to azahar.exe is created on the
+        // first start, so this build never shares settings, saves or cheats with another Azahar
+        // install. Controls are imported once from a normal install (see ImportMercs3DConfig).
+        if (!FileUtil::IsDirectory(user_path) && FileUtil::CreateFullPath(user_path)) {
+            ImportMercs3DConfig(AppDataRoamingDirectory() + DIR_SEP EMU_DATA_DIR DIR_SEP,
+                                user_path);
+        }
         if (!FileUtil::IsDirectory(user_path)) {
             user_path = AppDataRoamingDirectory() + DIR_SEP EMU_DATA_DIR DIR_SEP;
             legacy_citra_user_path =
