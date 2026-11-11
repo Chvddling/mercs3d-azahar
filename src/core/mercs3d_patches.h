@@ -4,22 +4,13 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
 #include "common/common_types.h"
-
-namespace Cheats {
-class CheatBase;
-}
 
 namespace Mercs3D {
 
-/// Built-in game patches, run by the cheat engine next to the user's own cheats (they are not
-/// shown in the cheat list and never written to the cheat file). Empty for other games.
-std::vector<std::shared_ptr<Cheats::CheatBase>> BuiltinCheats(u64 title_id);
-
-/// Whether a built-in patch should run now (follows the Mercs 3D settings).
-bool BuiltinCheatEnabled(const Cheats::CheatBase& cheat);
+/// If the game has no cheat file yet, writes the tested game patches (60 fps and its fixes,
+/// grenades on the D-pad, analog aim, Wesker on R3, FOV, animation fix, 16:9) as enabled cheats.
+void InstallDefaultCheats(u64 title_id);
 
 /// If the game has no save yet, installs the "everything unlocked, no records" save.
 void InstallDefaultSave(u64 title_id);

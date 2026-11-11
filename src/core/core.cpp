@@ -529,6 +529,7 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
     }
 
     Mercs3D::InstallDefaultSave(title_id);
+    Mercs3D::InstallDefaultCheats(title_id);
     cheat_engine.LoadCheatFile(title_id);
     cheat_engine.Connect(process->process_id);
 

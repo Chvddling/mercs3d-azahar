@@ -484,6 +484,7 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     mercs3d_memory.h
     mercs3d_minimap.cpp
     mercs3d_minimap.h
+    mercs3d_default_cheats.h
     mercs3d_default_save.h
     mercs3d_patches.cpp
     mercs3d_patches.h

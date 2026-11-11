@@ -59,22 +59,6 @@ ConfigureMercs3D::ConfigureMercs3D(QWidget* parent) : QWidget(parent) {
     layout->addWidget(MakeOverlayGroup(tr("Minimap"), minimap));
     layout->addWidget(MakeOverlayGroup(tr("Item grid"), items));
 
-    auto* patches_group = new QGroupBox(tr("Game patches"));
-    auto* patches_layout = new QVBoxLayout(patches_group);
-    fps60 = new QCheckBox(tr("60 fps (with the bullet, grenade and fire rate fixes)"));
-    game_patches = new QCheckBox(
-        tr("Grenades on D-pad Left / Right, analog aiming, Wesker's ability on R3, wider field "
-           "of view"));
-    auto* patches_help = new QLabel(tr("Turning a patch off takes effect after restarting the "
-                                       "game. The 16:9 picture follows the single screen layout."));
-    patches_help->setWordWrap(true);
-    patches_layout->addWidget(fps60);
-    patches_layout->addWidget(game_patches);
-    patches_layout->addWidget(patches_help);
-    layout->addWidget(patches_group);
-    connect(fps60, &QCheckBox::toggled, this, &ConfigureMercs3D::OnChanged);
-    connect(game_patches, &QCheckBox::toggled, this, &ConfigureMercs3D::OnChanged);
-
     auto* controls_group = new QGroupBox(tr("Controls"));
     auto* controls_layout = new QVBoxLayout(controls_group);
     type_b = new QCheckBox(tr("Controller type B (RE5 style)"));
@@ -154,8 +138,6 @@ void ConfigureMercs3D::Load(const Mercs3D::LayoutSettings& settings) {
     single_screen->setChecked(settings.single_screen);
     widescreen->setChecked(settings.widescreen);
     type_b->setChecked(settings.controller_type_b);
-    fps60->setChecked(settings.fps60);
-    game_patches->setChecked(settings.game_patches);
     auto load_overlay = [](OverlayControls& c, const Mercs3D::Overlay& o) {
         c.enabled->setChecked(o.enabled);
         c.x->setValue(ToPercent(o.x));
@@ -173,8 +155,6 @@ Mercs3D::LayoutSettings ConfigureMercs3D::Read() const {
     s.single_screen = single_screen->isChecked();
     s.widescreen = widescreen->isChecked();
     s.controller_type_b = type_b->isChecked();
-    s.fps60 = fps60->isChecked();
-    s.game_patches = game_patches->isChecked();
     auto read_overlay = [](const OverlayControls& c) {
         return Mercs3D::Overlay{c.enabled->isChecked(), FromPercent(c.x->value()),
                                 FromPercent(c.y->value()), FromPercent(c.size->value()),

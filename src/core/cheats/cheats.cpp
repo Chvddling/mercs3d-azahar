@@ -10,7 +10,6 @@
 #include "core/cheats/gateway_cheat.h"
 #include "core/core.h"
 #include "core/core_timing.h"
-#include "core/mercs3d_patches.h"
 
 namespace Cheats {
 
@@ -101,7 +100,6 @@ void CheatEngine::LoadCheatFile(u64 title_id) {
         std::unique_lock lock{cheats_list_mutex};
         loaded_title_id = title_id;
         cheats_list = std::move(gateway_cheats);
-        builtin_cheats = Mercs3D::BuiltinCheats(title_id);
     }
 }
 
@@ -110,11 +108,6 @@ void CheatEngine::RunCallback([[maybe_unused]] std::uintptr_t user_data, s64 cyc
         std::shared_lock lock{cheats_list_mutex};
         for (const auto& cheat : cheats_list) {
             if (cheat->IsEnabled()) {
-                cheat->Execute(system, process_id);
-            }
-        }
-        for (const auto& cheat : builtin_cheats) {
-            if (Mercs3D::BuiltinCheatEnabled(*cheat)) {
                 cheat->Execute(system, process_id);
             }
         }
