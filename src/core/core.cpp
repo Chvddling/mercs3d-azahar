@@ -32,6 +32,7 @@
 #include "core/dumping/backend.h"
 #include "core/file_sys/ncch_container.h"
 #include "core/frontend/image_interface.h"
+#include "core/mercs3d_patches.h"
 #ifdef ENABLE_GDBSTUB
 #include "core/gdbstub/gdbstub.h"
 #endif
@@ -525,6 +526,7 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
                   static_cast<u32>(load_result));
     }
 
+    Mercs3D::InstallDefaultSave(title_id);
     cheat_engine.LoadCheatFile(title_id);
     cheat_engine.Connect(process->process_id);
 

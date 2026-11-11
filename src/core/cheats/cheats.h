@@ -64,6 +64,8 @@ private:
     std::optional<u64> loaded_title_id;
     u32 process_id = 0xFFFFFFFF;
     std::vector<std::shared_ptr<CheatBase>> cheats_list;
+    /// Mercs3D: built-in game patches (not listed, never saved to the cheat file).
+    std::vector<std::shared_ptr<CheatBase>> builtin_cheats;
     mutable std::shared_mutex cheats_list_mutex;
 };
 } // namespace Cheats

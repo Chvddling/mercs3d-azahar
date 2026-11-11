@@ -43,6 +43,8 @@ struct LayoutSettings {
     /// Controller type B (RE5 style): ZL aims, ZR fires while aiming, and while aiming the
     /// right stick (C-Stick) aims instead of the left stick.
     bool controller_type_b = false;
+    bool fps60 = true; ///< Built-in 60 fps patch and its fixes (bullets, grenades, fire rate).
+    bool game_patches = true; ///< Built-in grenades on D-pad, analog aim, Wesker on R3, FOV.
 };
 
 /// Current settings (loaded from mercs3d.ini on first use). Thread safe.

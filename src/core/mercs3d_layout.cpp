@@ -87,14 +87,14 @@ struct FloatSettings {
     float single_screen, widescreen;
     float map_on, map_x, map_y, map_size, map_alpha;
     float items_on, items_x, items_y, items_size, items_alpha;
-    float type_b;
+    float type_b, fps60, game_patches;
 
     explicit FloatSettings(const LayoutSettings& s)
         : single_screen(s.single_screen), widescreen(s.widescreen), map_on(s.minimap.enabled),
           map_x(s.minimap.x), map_y(s.minimap.y), map_size(s.minimap.size),
           map_alpha(s.minimap.alpha), items_on(s.items.enabled), items_x(s.items.x),
           items_y(s.items.y), items_size(s.items.size), items_alpha(s.items.alpha),
-          type_b(s.controller_type_b) {}
+          type_b(s.controller_type_b), fps60(s.fps60), game_patches(s.game_patches) {}
 
     LayoutSettings ToSettings() const {
         LayoutSettings s;
@@ -103,10 +103,12 @@ struct FloatSettings {
         s.minimap = {map_on != 0.0f, map_x, map_y, map_size, map_alpha};
         s.items = {items_on != 0.0f, items_x, items_y, items_size, items_alpha};
         s.controller_type_b = type_b != 0.0f;
+        s.fps60 = fps60 != 0.0f;
+        s.game_patches = game_patches != 0.0f;
         return s;
     }
 
-    std::array<Entry, 13> Entries() {
+    std::array<Entry, 15> Entries() {
         return {{
             {"single_screen", &single_screen, 0.0f, 1.0f},
             {"widescreen", &widescreen, 0.0f, 1.0f},
@@ -121,6 +123,8 @@ struct FloatSettings {
             {"items_size", &items_size, 0.02f, 1.0f},
             {"items_alpha", &items_alpha, 0.0f, 1.0f},
             {"controller_type_b", &type_b, 0.0f, 1.0f},
+            {"fps60", &fps60, 0.0f, 1.0f},
+            {"game_patches", &game_patches, 0.0f, 1.0f},
         }};
     }
 };

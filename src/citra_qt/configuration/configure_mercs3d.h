@@ -41,6 +41,8 @@ private:
     QCheckBox* single_screen;
     QCheckBox* widescreen;
     QCheckBox* type_b;
+    QCheckBox* fps60;
+    QCheckBox* game_patches;
     OverlayControls minimap{};
     OverlayControls items{};
 

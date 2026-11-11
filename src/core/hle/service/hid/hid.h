@@ -375,6 +375,7 @@ private:
     // Does nothing for any other title.
     void LoadMercs3DConfig();
     bool IsMercs3DRunning() const;
+    void LoadMercs3DR3();
     bool UpdateMercs3DRightStickTouch(u16& touch_x, u16& touch_y);
 
     Core::System& system;
@@ -420,6 +421,7 @@ private:
     std::unique_ptr<Input::AnalogDevice> mercs3d_c_stick;
     std::unique_ptr<Input::ButtonDevice> mercs3d_zl;
     std::unique_ptr<Input::ButtonDevice> mercs3d_zr;
+    std::unique_ptr<Input::ButtonDevice> mercs3d_r3;
     struct Mercs3DConfig {
         bool enabled = true;
         float deadzone = 0.15f;

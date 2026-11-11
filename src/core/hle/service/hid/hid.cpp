@@ -13,6 +13,7 @@
 #include "common/archives.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
+#include "common/param_package.h"
 #include "core/3ds.h"
 #include "core/core.h"
 #include "core/hle/ipc_helpers.h"
@@ -137,6 +138,7 @@ void Module::LoadInputDevices() {
         Settings::values.current_input_profile.buttons[Settings::NativeButton::ZL]);
     mercs3d_zr = Input::CreateDevice<Input::ButtonDevice>(
         Settings::values.current_input_profile.buttons[Settings::NativeButton::ZR]);
+    LoadMercs3DR3();
     LoadMercs3DConfig();
     motion_device = Input::CreateDevice<Input::MotionDevice>(
         Settings::values.current_input_profile.motion_device);
@@ -247,6 +249,28 @@ void Module::LoadMercs3DConfig() {
         }
     }
     LOG_INFO(Service_HID, "Mercs3D: loaded settings from {}", path);
+}
+
+void Module::LoadMercs3DR3() {
+    // Mercenaries 3D: Wesker's ability is patched onto the Debug button. When Debug is not
+    // bound to a controller, press it with R3 of the controller the other buttons use.
+    using namespace Settings::NativeButton;
+    mercs3d_r3.reset();
+    const auto& binds = Settings::values.current_input_profile.buttons;
+    if (Common::ParamPackage(binds[Debug]).Get("engine", "") == "sdl") {
+        return;
+    }
+    for (const int button : {A, B, X, Y, L, R, Start, Select}) {
+        Common::ParamPackage param(binds[button]);
+        if (param.Get("engine", "") == "sdl" && param.Get("api", "") == "controller" &&
+            param.Has("button")) {
+            param.Set("button", 8); // SDL_CONTROLLER_BUTTON_RIGHTSTICK
+            param.Erase("name");
+            mercs3d_r3 = Input::CreateDevice<Input::ButtonDevice>(param.Serialize());
+            LOG_INFO(Service_HID, "Mercs3D: R3 acts as the Debug button");
+            return;
+        }
+    }
 }
 
 bool Module::IsMercs3DRunning() const {
@@ -413,6 +437,10 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         // The game only knows the 3DS buttons, so: ZL aims (= R), ZR fires while aiming (= Y;
         // Y alone stays the action / melee prompt). While aiming, the right stick (C-Stick)
         // aims instead of the Circle Pad; otherwise it keeps driving the look-around camera.
+        if (mercs3d_r3 && mercs3d_r3->GetStatus() && IsMercs3DRunning()) {
+            state.debug.Assign(1);
+        }
+
         mercs3d_re5_aiming = false;
         if (IsMercs3DRunning() && Mercs3D::GetLayoutSettings().controller_type_b) {
             if (mercs3d_zl && mercs3d_zl->GetStatus()) {
