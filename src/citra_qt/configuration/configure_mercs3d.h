@@ -40,6 +40,7 @@ private:
 
     QCheckBox* single_screen;
     QCheckBox* widescreen;
+    QCheckBox* type_b;
     OverlayControls minimap{};
     OverlayControls items{};
 

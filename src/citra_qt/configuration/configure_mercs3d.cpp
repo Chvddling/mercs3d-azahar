@@ -59,6 +59,19 @@ ConfigureMercs3D::ConfigureMercs3D(QWidget* parent) : QWidget(parent) {
     layout->addWidget(MakeOverlayGroup(tr("Minimap"), minimap));
     layout->addWidget(MakeOverlayGroup(tr("Item grid"), items));
 
+    auto* controls_group = new QGroupBox(tr("Controls"));
+    auto* controls_layout = new QVBoxLayout(controls_group);
+    type_b = new QCheckBox(tr("Controller type B (RE5 style)"));
+    auto* type_b_help = new QLabel(
+        tr("Left trigger (ZL) aims, right trigger (ZR) shoots while aiming, and while aiming the "
+           "right stick aims instead of the left stick. Bind the triggers to ZL / ZR and the right "
+           "stick to C-Stick in Controls. Keep the in-game control type on Type A."));
+    type_b_help->setWordWrap(true);
+    controls_layout->addWidget(type_b);
+    controls_layout->addWidget(type_b_help);
+    layout->addWidget(controls_group);
+    connect(type_b, &QCheckBox::toggled, this, &ConfigureMercs3D::OnChanged);
+
     auto* spawn_group = new QGroupBox(tr("Starting point"));
     auto* spawn_layout = new QVBoxLayout(spawn_group);
     spawn_ask = new QCheckBox(tr("Ask where to start when a mission with several starting points "
@@ -124,6 +137,7 @@ void ConfigureMercs3D::Load(const Mercs3D::LayoutSettings& settings) {
     loading = true;
     single_screen->setChecked(settings.single_screen);
     widescreen->setChecked(settings.widescreen);
+    type_b->setChecked(settings.controller_type_b);
     auto load_overlay = [](OverlayControls& c, const Mercs3D::Overlay& o) {
         c.enabled->setChecked(o.enabled);
         c.x->setValue(ToPercent(o.x));
@@ -140,6 +154,7 @@ Mercs3D::LayoutSettings ConfigureMercs3D::Read() const {
     Mercs3D::LayoutSettings s;
     s.single_screen = single_screen->isChecked();
     s.widescreen = widescreen->isChecked();
+    s.controller_type_b = type_b->isChecked();
     auto read_overlay = [](const OverlayControls& c) {
         return Mercs3D::Overlay{c.enabled->isChecked(), FromPercent(c.x->value()),
                                 FromPercent(c.y->value()), FromPercent(c.size->value()),

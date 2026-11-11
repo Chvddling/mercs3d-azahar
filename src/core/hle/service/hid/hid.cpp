@@ -29,6 +29,7 @@
 #include "core/hle/service/ir/ir_user.h"
 #include "core/hle/service/service.h"
 #include "core/memory.h"
+#include "core/mercs3d_layout.h"
 #include "core/mercs3d_spawn.h"
 #include "core/movie.h"
 
@@ -182,10 +183,6 @@ void Module::LoadMercs3DConfig() {
             "invert_x = 0\n"
             "invert_y = 0\n"
             "\n"
-            "# RE5-style controls: ZL (left trigger) aims, ZR (right trigger) shoots while\n"
-            "# aiming, L (left bumper) strafes, and the right stick (C-Stick) aims.\n"
-            "re5_controls = 1\n"
-            "\n"
             "# Show enemies as red dots on the minimap (darker red = another floor)\n"
             "minimap_enemies = 1\n"
             "# Dot size in bottom screen pixels\n"
@@ -247,8 +244,6 @@ void Module::LoadMercs3DConfig() {
             mercs3d_config.invert_x = number != 0.0f;
         } else if (key == "invert_y") {
             mercs3d_config.invert_y = number != 0.0f;
-        } else if (key == "re5_controls") {
-            mercs3d_config.re5_controls = number != 0.0f;
         }
     }
     LOG_INFO(Service_HID, "Mercs3D: loaded settings from {}", path);
@@ -414,12 +409,12 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         const InputOverride input = GetInputOverride();
         state.hex |= input.buttons;
 
-        // Mercenaries 3D, RE5-style controls (the game itself only knows the 3DS buttons):
-        // ZL aims (= R), ZR fires while aiming (= Y; Y alone is the action/melee prompt),
-        // L strafes (the game's own L + Circle Pad strafe), and while aiming the right stick
-        // (C-Stick) takes the place of the Circle Pad, which the game uses to aim.
+        // Mercenaries 3D, controller type B (RE5 style; Mercs 3D settings page, off by default).
+        // The game only knows the 3DS buttons, so: ZL aims (= R), ZR fires while aiming (= Y;
+        // Y alone stays the action / melee prompt). While aiming, the right stick (C-Stick)
+        // aims instead of the Circle Pad; otherwise it keeps driving the look-around camera.
         mercs3d_re5_aiming = false;
-        if (mercs3d_config.re5_controls && IsMercs3DRunning()) {
+        if (IsMercs3DRunning() && Mercs3D::GetLayoutSettings().controller_type_b) {
             if (mercs3d_zl && mercs3d_zl->GetStatus()) {
                 state.r.Assign(1);
             }
@@ -433,13 +428,7 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         float circle_pad_x_f, circle_pad_y_f;
         std::tie(circle_pad_x_f, circle_pad_y_f) = circle_pad->GetStatus();
         if (mercs3d_re5_aiming && mercs3d_c_stick) {
-            // The right stick wins when it is pushed; otherwise the left stick still aims.
-            const auto [stick_x, stick_y] = mercs3d_c_stick->GetStatus();
-            const float dz = mercs3d_config.deadzone;
-            if (stick_x * stick_x + stick_y * stick_y > dz * dz) {
-                circle_pad_x_f = stick_x;
-                circle_pad_y_f = stick_y;
-            }
+            std::tie(circle_pad_x_f, circle_pad_y_f) = mercs3d_c_stick->GetStatus();
         }
 
         // xperia64: 0x9A seems to be the calibrated limit of the circle pad

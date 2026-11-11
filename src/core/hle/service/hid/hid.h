@@ -429,11 +429,10 @@ private:
         float speed = 400.0f;
         bool invert_x = false;
         bool invert_y = false;
-        bool re5_controls = true; ///< ZL aim, ZR fire, L strafe, right stick aims
     };
     Mercs3DConfig mercs3d_config;
     bool mercs3d_finger_down = false;
-    bool mercs3d_re5_aiming = false; ///< RE5 controls: aiming this pad update
+    bool mercs3d_re5_aiming = false; ///< Controller type B: aiming this pad update
     float mercs3d_finger_x = 0.0f;
     float mercs3d_finger_y = 0.0f;
     std::unique_ptr<Input::MotionDevice> motion_device;

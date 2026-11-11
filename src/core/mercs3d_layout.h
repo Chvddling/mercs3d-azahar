@@ -40,6 +40,9 @@ struct LayoutSettings {
     bool widescreen = true;    ///< Game area is 16:9 (letterboxed); otherwise it fills the window.
     Overlay minimap{true, 0.779f, 0.012f, 0.344f, 1.0f};
     Overlay items{true, 0.0f, 0.677f, 0.323f, 1.0f};
+    /// Controller type B (RE5 style): ZL aims, ZR fires while aiming, and while aiming the
+    /// right stick (C-Stick) aims instead of the left stick.
+    bool controller_type_b = false;
 };
 
 /// Current settings (loaded from mercs3d.ini on first use). Thread safe.
