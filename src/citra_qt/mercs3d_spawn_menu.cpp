@@ -111,8 +111,7 @@ void Mercs3DSpawnMap::paintEvent(QPaintEvent*) {
         const double radius = static_cast<int>(i) == selected ? 16 : 12;
         p.drawEllipse(c, radius, radius);
         p.setPen(Qt::white);
-        p.drawText(QRectF(c.x() - 16, c.y() - 16, 32, 32), Qt::AlignCenter,
-                   QString::number(i + 1));
+        p.drawText(QRectF(c.x() - 16, c.y() - 16, 32, 32), Qt::AlignCenter, QString::number(i + 1));
         const float up = (points[i].y - low) / 100.0f;
         if (up >= 1.0f) {
             p.setPen(QColor(200, 200, 200));
@@ -129,9 +128,9 @@ Mercs3DSpawnDialog::Mercs3DSpawnDialog(const Mercs3D::SpawnRequest& request, QWi
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
     auto* layout = new QVBoxLayout(this);
-    auto* title = new QLabel(tr("<b>%1</b>: where do you want to start?")
-                                 .arg(QString::fromStdString(
-                                     Mercs3D::MissionName(request.mission_id))));
+    auto* title =
+        new QLabel(tr("<b>%1</b>: where do you want to start?")
+                       .arg(QString::fromStdString(Mercs3D::MissionName(request.mission_id))));
     layout->addWidget(title);
 
     map = new Mercs3DSpawnMap;

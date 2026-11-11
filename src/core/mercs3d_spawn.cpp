@@ -24,7 +24,7 @@ constexpr VAddr S_NETWORK = 0x008BE7C8; // network system*
 constexpr u32 MISSION_ID = 0x18;        // sMission -> mMissionID (0x0501 = mission 6-2)
 constexpr u32 MISSION_START_POS = 0x60; // sMission -> rStartPosition* (linear heap)
 constexpr u32 START_POS_COUNT = 0x64;
-constexpr u32 START_POS_POINTS = 0x70;  // PointData*[count]
+constexpr u32 START_POS_POINTS = 0x70; // PointData*[count]
 constexpr u32 POINT_DATA_VTABLE = 0x00897D80;
 constexpr u32 POINT_POS = 0x08;  // vec3
 constexpr u32 POINT_YAW = 0x28;  // degrees

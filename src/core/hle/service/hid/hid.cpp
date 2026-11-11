@@ -132,6 +132,10 @@ void Module::LoadInputDevices() {
         Settings::values.current_input_profile.analogs[Settings::NativeAnalog::CirclePad]);
     mercs3d_c_stick = Input::CreateDevice<Input::AnalogDevice>(
         Settings::values.current_input_profile.analogs[Settings::NativeAnalog::CStick]);
+    mercs3d_zl = Input::CreateDevice<Input::ButtonDevice>(
+        Settings::values.current_input_profile.buttons[Settings::NativeButton::ZL]);
+    mercs3d_zr = Input::CreateDevice<Input::ButtonDevice>(
+        Settings::values.current_input_profile.buttons[Settings::NativeButton::ZR]);
     LoadMercs3DConfig();
     motion_device = Input::CreateDevice<Input::MotionDevice>(
         Settings::values.current_input_profile.motion_device);
@@ -177,6 +181,10 @@ void Module::LoadMercs3DConfig() {
             "# 1 to invert an axis\n"
             "invert_x = 0\n"
             "invert_y = 0\n"
+            "\n"
+            "# RE5-style controls: ZL (left trigger) aims, ZR (right trigger) shoots while\n"
+            "# aiming, L (left bumper) strafes, and the right stick (C-Stick) aims.\n"
+            "re5_controls = 1\n"
             "\n"
             "# Show enemies as red dots on the minimap (darker red = another floor)\n"
             "minimap_enemies = 1\n"
@@ -239,6 +247,8 @@ void Module::LoadMercs3DConfig() {
             mercs3d_config.invert_x = number != 0.0f;
         } else if (key == "invert_y") {
             mercs3d_config.invert_y = number != 0.0f;
+        } else if (key == "re5_controls") {
+            mercs3d_config.re5_controls = number != 0.0f;
         }
     }
     LOG_INFO(Service_HID, "Mercs3D: loaded settings from {}", path);
@@ -269,7 +279,8 @@ bool Module::UpdateMercs3DRightStickTouch(u16& touch_x, u16& touch_y) {
     // The pad updates 234 times per second.
     constexpr float UPDATES_PER_SEC = 234.0f;
 
-    if (!cfg.enabled || !mercs3d_c_stick || !IsMercs3DRunning()) {
+    // While aiming with the RE5 controls the right stick aims instead.
+    if (!cfg.enabled || !mercs3d_c_stick || mercs3d_re5_aiming || !IsMercs3DRunning()) {
         mercs3d_finger_down = false;
         return false;
     }
@@ -403,9 +414,33 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         const InputOverride input = GetInputOverride();
         state.hex |= input.buttons;
 
+        // Mercenaries 3D, RE5-style controls (the game itself only knows the 3DS buttons):
+        // ZL aims (= R), ZR fires while aiming (= Y; Y alone is the action/melee prompt),
+        // L strafes (the game's own L + Circle Pad strafe), and while aiming the right stick
+        // (C-Stick) takes the place of the Circle Pad, which the game uses to aim.
+        mercs3d_re5_aiming = false;
+        if (mercs3d_config.re5_controls && IsMercs3DRunning()) {
+            if (mercs3d_zl && mercs3d_zl->GetStatus()) {
+                state.r.Assign(1);
+            }
+            mercs3d_re5_aiming = state.r != 0;
+            if (mercs3d_re5_aiming && mercs3d_zr && mercs3d_zr->GetStatus()) {
+                state.y.Assign(1);
+            }
+        }
+
         // Get current circle pad position and update circle pad direction
         float circle_pad_x_f, circle_pad_y_f;
         std::tie(circle_pad_x_f, circle_pad_y_f) = circle_pad->GetStatus();
+        if (mercs3d_re5_aiming && mercs3d_c_stick) {
+            // The right stick wins when it is pushed; otherwise the left stick still aims.
+            const auto [stick_x, stick_y] = mercs3d_c_stick->GetStatus();
+            const float dz = mercs3d_config.deadzone;
+            if (stick_x * stick_x + stick_y * stick_y > dz * dz) {
+                circle_pad_x_f = stick_x;
+                circle_pad_y_f = stick_y;
+            }
+        }
 
         // xperia64: 0x9A seems to be the calibrated limit of the circle pad
         // Verified by using Input Redirector with very large-value digital inputs

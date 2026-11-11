@@ -59,7 +59,7 @@ void ResetSpawnMenu();
 void UpdateSpawnMenu(Core::System& system, const std::function<u32()>& read_buttons);
 
 struct SpawnSettings {
-    bool ask = true;              ///< Show the menu when a mission with 2+ points loads.
+    bool ask = true;               ///< Show the menu when a mission with 2+ points loads.
     std::map<u32, int> remembered; ///< mission id -> point index (-1 = random)
 };
 
